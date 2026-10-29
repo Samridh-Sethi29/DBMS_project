@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Environment variables and secrets (DB passwords, JWT secret)
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+frontend/dist/
+frontend/build/
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Database dumps and local data
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+backup/
+# Uncomment if you do NOT want to commit generated seed/dump files
+# *.sql.bak
+
+# Package manager caches
+.npm/
+.yarn/
+.pnpm-store/
+.eslintcache
+
+# Uploaded / generated files (e.g. certificates)
+uploads/
+generated/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Vite / tooling cache
+.vite/
+.cache/
+*.tsbuildinfo
