@@ -5,12 +5,14 @@ import 'dotenv/config';
 import express from 'express';
 import { timing } from './middleware/timing.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import authRoutes    from './routes/auth.js';
-import eventsRoutes  from './routes/events.js';
-import studentsRoutes from './routes/students.js';
-import clubsRoutes   from './routes/clubs.js';
-import venuesRoutes  from './routes/venues.js';
-import queryRoutes   from './routes/query.js';
+import authRoutes       from './routes/auth.js';
+import eventsRoutes     from './routes/events.js';
+import studentsRoutes   from './routes/students.js';
+import clubsRoutes      from './routes/clubs.js';
+import publicClubsRoutes  from './routes/publicClubs.js';
+import { eventsPublicRouter, certificatesRouter } from './routes/publicEvents.js';
+import venuesRoutes     from './routes/venues.js';
+import queryRoutes      from './routes/query.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -30,11 +32,19 @@ if (process.env.NODE_ENV !== 'production') {
 
 // ── Routes ───────────────────────────────────────────────────────────────
 app.use('/auth',         authRoutes);
+// Public event routes (memories + single event detail) must be registered BEFORE
+// the authenticated eventsRoutes so :eventId digits don't swallow /all or /filter.
+app.use('/api/events',   eventsPublicRouter);
 app.use('/api/events',   eventsRoutes);
 app.use('/api/students', studentsRoutes);
+// Public clubs (GET / and GET /:clubId) registered BEFORE the auth-gated router
+// so they replace those two handlers; the auth-gated router still owns POST/PUT/DELETE.
+app.use('/api/clubs',    publicClubsRoutes);
 app.use('/api/clubs',    clubsRoutes);
 app.use('/api/venues',   venuesRoutes);
 app.use('/api',          queryRoutes);   // aggregate, join, subquery, correlated, dashboard, reports
+// Certificate verification (public, no auth)
+app.use('/certificates', certificatesRouter);
 
 // ── Health check ─────────────────────────────────────────────────────────
 app.get('/health', (_req, res) =>

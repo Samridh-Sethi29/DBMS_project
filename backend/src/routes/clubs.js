@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { requireAuth, requireRole, requireEntityClubRank } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
-  listClubs, getClub, createClub, updateClub, deleteClub,
+  createClub, updateClub, deleteClub,
 } from '../controllers/clubsController.js';
 
 const router = Router();
@@ -28,8 +28,8 @@ const updateClubSchema = clubSchema.partial().extend({
   status: z.enum(['active','inactive']).optional(),
 });
 
-router.get('/',       listClubs);
-router.get('/:id',    getClub);
+// GET / and GET /:clubId are handled by publicClubsRoutes (mounted first in app.js).
+// This router handles authenticated mutations only.
 router.post('/',      requireAuth, requireRole('admin'), validate(clubSchema), createClub);
 router.put('/:id',    requireAuth, requireEntityClubRank('club', 3), validate(updateClubSchema), updateClub);
 router.delete('/:id', requireAuth, requireRole('admin'), deleteClub);

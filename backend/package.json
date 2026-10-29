@@ -6,7 +6,8 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "node --watch src/app.js"
+    "dev": "node --watch src/app.js",
+    "seed:users": "node scripts/seed-users.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
