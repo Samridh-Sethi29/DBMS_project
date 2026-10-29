@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/banner.svg" alt="CampusConnect – Your Campus. Your Community." width="100%"/>
+<img src="C:\Users\Shriyanshi\Downloads\banner (1).svg" alt="CampusConnect – Your Campus. Your Community." width="100%"/>
 
 <br/>
 
