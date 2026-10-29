@@ -29,6 +29,7 @@ GRANT EXECUTE ON PROCEDURE club_event_db.sp_search_events       TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_sum_grouped         TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_sum_column          TO 'role_naive';
 GRANT EXECUTE ON FUNCTION  club_event_db.fn_total_capacity      TO 'role_naive';
+GRANT EXECUTE ON FUNCTION  club_event_db.fn_club_rank          TO 'role_naive';
 
 -- role_developer: full CRUD + EXECUTE on all procedures + CREATE VIEW
 CREATE ROLE 'role_developer';
@@ -53,15 +54,20 @@ GRANT 'role_developer' TO 'user_developer'@'localhost';
 GRANT 'role_dba'       TO 'user_dba'@'localhost';
 
 -- Activate the default role so the role is in effect without SET ROLE
+SET DEFAULT ROLE 'role_naive'     TO 'user_naive'@'localhost';
+SET DEFAULT ROLE 'role_developer' TO 'user_developer'@'localhost';
+SET DEFAULT ROLE 'role_dba'       TO 'user_dba'@'localhost';
+
 ALTER USER 'user_naive'@'localhost'     DEFAULT ROLE 'role_naive';
 ALTER USER 'user_developer'@'localhost' DEFAULT ROLE 'role_developer';
 ALTER USER 'user_dba'@'localhost'       DEFAULT ROLE 'role_dba';
 
 -- ---------------------------------------------------------------------------
--- 4. Sample REVOKE then re-GRANT (demonstrates revoke mechanics)
+-- 4. Sample GRANT then REVOKE on role_naive (demonstrates privilege mechanics)
 -- ---------------------------------------------------------------------------
--- Remove INSERT from naive user directly (role grant is unaffected)
-REVOKE INSERT ON club_event_db.* FROM 'user_naive'@'localhost';
+-- Grant INSERT on one table to role_naive, then revoke it
+GRANT  INSERT ON club_event_db.registrations TO   'role_naive';
+REVOKE INSERT ON club_event_db.registrations FROM 'role_naive';
 
 -- Give developer the ability to grant SELECT to others
 GRANT SELECT ON club_event_db.* TO 'user_developer'@'localhost' WITH GRANT OPTION;

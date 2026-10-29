@@ -14,34 +14,32 @@ DELIMITER $$
 DROP PROCEDURE IF EXISTS _assert_not_blank$$
 CREATE PROCEDURE _assert_not_blank(IN p_val VARCHAR(1000), IN p_field VARCHAR(100))
 BEGIN
+  DECLARE msg VARCHAR(255);
   IF p_val IS NULL OR TRIM(p_val) = '' THEN
+    SET msg = CONCAT(p_field, ' must not be blank');
     SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = CONCAT(p_field, ' must not be blank');
+      SET MESSAGE_TEXT = msg;
   END IF;
 END$$
 
 -- ===========================================================================
 -- USER PROCEDURES
+-- Inner procedures called by student procedures: they do NOT manage transactions
+-- because MySQL does not support nested transactions. Only the outermost caller manages transactions.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- sp_user_register
+-- sp_user_register (inner procedure: called by sp_insert_student or standalone)
 -- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_user_register$$
 CREATE PROCEDURE sp_user_register(
-  IN  p_name          VARCHAR(150),
-  IN  p_email         VARCHAR(255),
+  IN  p_name          VARCHAR(100),
+  IN  p_email         VARCHAR(120),
   IN  p_password_hash VARCHAR(255),
   IN  p_role          VARCHAR(20),
   OUT p_user_id       INT
 )
 BEGIN
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION
-  BEGIN
-    ROLLBACK;
-    RESIGNAL;
-  END;
-
   CALL _assert_not_blank(p_name,  'name');
   CALL _assert_not_blank(p_email, 'email');
   CALL _assert_not_blank(p_password_hash, 'password_hash');
@@ -60,29 +58,21 @@ BEGIN
       SET MESSAGE_TEXT = 'A user with this email already exists.';
   END IF;
 
-  START TRANSACTION;
-    INSERT INTO users (name, email, password_hash, role)
-    VALUES (p_name, p_email, p_password_hash, p_role);
-    SET p_user_id = LAST_INSERT_ID();
-  COMMIT;
+  INSERT INTO users (name, email, password_hash, role)
+  VALUES (p_name, p_email, p_password_hash, p_role);
+  SET p_user_id = LAST_INSERT_ID();
 END$$
 
 -- ---------------------------------------------------------------------------
--- sp_user_update
+-- sp_user_update (inner procedure: called by sp_update_student or standalone)
 -- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_user_update$$
 CREATE PROCEDURE sp_user_update(
   IN p_user_id INT,
-  IN p_name    VARCHAR(150),
-  IN p_email   VARCHAR(255)
+  IN p_name    VARCHAR(100),
+  IN p_email   VARCHAR(120)
 )
 BEGIN
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION
-  BEGIN
-    ROLLBACK;
-    RESIGNAL;
-  END;
-
   IF NOT EXISTS (SELECT 1 FROM users WHERE user_id = p_user_id AND is_active = 1) THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'User not found or is inactive.';
@@ -96,31 +86,21 @@ BEGIN
       SET MESSAGE_TEXT = 'Email already taken by another user.';
   END IF;
 
-  START TRANSACTION;
-    UPDATE users SET name = p_name, email = p_email WHERE user_id = p_user_id;
-  COMMIT;
+  UPDATE users SET name = p_name, email = p_email WHERE user_id = p_user_id;
 END$$
 
 -- ---------------------------------------------------------------------------
--- sp_user_deactivate  (soft delete)
+-- sp_user_deactivate (inner procedure: called by sp_delete_student or standalone)
 -- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_user_deactivate$$
 CREATE PROCEDURE sp_user_deactivate(IN p_user_id INT)
 BEGIN
-  DECLARE EXIT HANDLER FOR SQLEXCEPTION
-  BEGIN
-    ROLLBACK;
-    RESIGNAL;
-  END;
-
   IF NOT EXISTS (SELECT 1 FROM users WHERE user_id = p_user_id) THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'User not found.';
   END IF;
 
-  START TRANSACTION;
-    UPDATE users SET is_active = 0 WHERE user_id = p_user_id;
-  COMMIT;
+  UPDATE users SET is_active = 0 WHERE user_id = p_user_id;
 END$$
 
 -- ---------------------------------------------------------------------------
@@ -136,15 +116,16 @@ END$$
 
 -- ===========================================================================
 -- STUDENT PROCEDURES
+-- Outermost callers: manage transactions for atomic multi-table writes.
 -- ===========================================================================
 
 -- ---------------------------------------------------------------------------
--- sp_insert_student
+-- sp_insert_student (outermost: manages transaction)
 -- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_insert_student$$
 CREATE PROCEDURE sp_insert_student(
-  IN  p_name          VARCHAR(150),
-  IN  p_email         VARCHAR(255),
+  IN  p_name          VARCHAR(100),
+  IN  p_email         VARCHAR(120),
   IN  p_password_hash VARCHAR(255),
   IN  p_roll_no       VARCHAR(30),
   IN  p_department_id INT,
@@ -184,9 +165,7 @@ BEGIN
   END IF;
 
   START TRANSACTION;
-    INSERT INTO users (name, email, password_hash, role)
-    VALUES (p_name, p_email, p_password_hash, 'user');
-    SET p_student_id = LAST_INSERT_ID();
+    CALL sp_user_register(p_name, p_email, p_password_hash, 'user', p_student_id);
 
     INSERT INTO students (student_id, roll_no, department_id, year_of_study, phone)
     VALUES (p_student_id, UPPER(p_roll_no), p_department_id, p_year_of_study, p_phone);
@@ -194,13 +173,13 @@ BEGIN
 END$$
 
 -- ---------------------------------------------------------------------------
--- sp_update_student
+-- sp_update_student (outermost: manages transaction)
 -- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_update_student$$
 CREATE PROCEDURE sp_update_student(
   IN p_student_id   INT,
-  IN p_name         VARCHAR(150),
-  IN p_email        VARCHAR(255),
+  IN p_name         VARCHAR(100),
+  IN p_email        VARCHAR(120),
   IN p_roll_no      VARCHAR(30),
   IN p_department_id INT,
   IN p_year_of_study TINYINT,
@@ -239,7 +218,7 @@ BEGIN
   END IF;
 
   START TRANSACTION;
-    UPDATE users SET name = p_name, email = p_email WHERE user_id = p_student_id;
+    CALL sp_user_update(p_student_id, p_name, p_email);
     UPDATE students
     SET    roll_no        = UPPER(p_roll_no),
            department_id  = p_department_id,
@@ -250,7 +229,7 @@ BEGIN
 END$$
 
 -- ---------------------------------------------------------------------------
--- sp_delete_student  (soft delete via user deactivate)
+-- sp_delete_student (outermost: manages transaction)
 -- ---------------------------------------------------------------------------
 DROP PROCEDURE IF EXISTS sp_delete_student$$
 CREATE PROCEDURE sp_delete_student(IN p_student_id INT)
@@ -267,7 +246,7 @@ BEGIN
   END IF;
 
   START TRANSACTION;
-    UPDATE users SET is_active = 0 WHERE user_id = p_student_id;
+    CALL sp_user_deactivate(p_student_id);
   COMMIT;
 END$$
 

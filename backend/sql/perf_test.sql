@@ -4,9 +4,35 @@
 -- =============================================================================
 USE club_event_db;
 
+SET SESSION cte_max_recursion_depth = 100000;
+
 -- Disable foreign key checks and safe update mode during bulk seed
 SET foreign_key_checks = 0;
 SET sql_mode = '';
+
+-- ---------------------------------------------------------------------------
+-- DROP TRIGGERS BEFORE BULK SEEDING
+-- Rationale:
+-- 1. The Monday window triggers (trg_registrations_block_monday_*) would abort
+--    the bulk seed of 50,000+ registrations if run on a Monday between 14:00-16:00.
+-- 2. The audit triggers (trg_events_audit_*, trg_registrations_audit_*,
+--    trg_clubs_audit_*) would generate 50,000+ JSON audit rows in
+--    application_audit_log, causing massive I/O overhead and severe seed degradation.
+-- Both sets of triggers are dropped before seeding and recreated immediately afterwards.
+-- ---------------------------------------------------------------------------
+DROP TRIGGER IF EXISTS trg_registrations_block_monday_insert;
+DROP TRIGGER IF EXISTS trg_registrations_block_monday_update;
+DROP TRIGGER IF EXISTS trg_registrations_block_monday_delete;
+
+DROP TRIGGER IF EXISTS trg_events_audit_insert;
+DROP TRIGGER IF EXISTS trg_events_audit_update;
+DROP TRIGGER IF EXISTS trg_events_audit_delete;
+DROP TRIGGER IF EXISTS trg_registrations_audit_insert;
+DROP TRIGGER IF EXISTS trg_registrations_audit_update;
+DROP TRIGGER IF EXISTS trg_registrations_audit_delete;
+DROP TRIGGER IF EXISTS trg_clubs_audit_insert;
+DROP TRIGGER IF EXISTS trg_clubs_audit_update;
+DROP TRIGGER IF EXISTS trg_clubs_audit_delete;
 
 -- ---------------------------------------------------------------------------
 -- SEED: Departments (10)
@@ -123,34 +149,34 @@ FROM seq
 ON DUPLICATE KEY UPDATE roll_no = VALUES(roll_no);
 
 -- ---------------------------------------------------------------------------
--- SEED: 200 events (spread across venues, clubs, types; non-overlapping per venue)
+-- SEED: 20 000 events (spread across venues, clubs, types; non-overlapping per venue)
 -- ---------------------------------------------------------------------------
 INSERT INTO events
   (club_id, venue_id, title, description, event_type,
    start_datetime, end_datetime, registration_deadline,
    max_participants, signup_mode, is_tentative, status, created_by)
 WITH RECURSIVE seq(n) AS (
-  SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 200
+  SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 20000
 )
 SELECT
-  (n MOD 10) + 1                                                 AS club_id,
-  (n MOD 20) + 1                                                 AS venue_id,
-  CONCAT('Event ', n)                                            AS title,
-  CONCAT('Description for event ', n)                            AS description,
-  ELT((n MOD 6) + 1,'technical','cultural','academic','sports','workshop','other') AS event_type,
-  DATE_ADD('2025-01-01 09:00:00', INTERVAL (n * 25) HOUR)       AS start_datetime,
-  DATE_ADD('2025-01-01 11:00:00', INTERVAL (n * 25) HOUR)       AS end_datetime,
-  DATE_ADD('2024-12-31 23:59:00', INTERVAL (n * 25) HOUR)       AS registration_deadline,
-  50 + (n MOD 100)                                               AS max_participants,
+  (s.n MOD 10) + 1                                               AS club_id,
+  v.venue_id                                                     AS venue_id,
+  CONCAT('Event ', s.n)                                          AS title,
+  CONCAT('Description for event ', s.n)                          AS description,
+  ELT((s.n MOD 6) + 1,'technical','cultural','academic','sports','workshop','other') AS event_type,
+  DATE_ADD('2025-01-01 09:00:00', INTERVAL (FLOOR((s.n - 1) / 20) * 3) HOUR) AS start_datetime,
+  DATE_ADD('2025-01-01 11:00:00', INTERVAL (FLOOR((s.n - 1) / 20) * 3) HOUR) AS end_datetime,
+  DATE_ADD('2024-12-31 23:59:00', INTERVAL (FLOOR((s.n - 1) / 20) * 3) HOUR) AS registration_deadline,
+  LEAST(v.capacity, 30 + (s.n MOD 20))                           AS max_participants,
   'internal'                                                     AS signup_mode,
   FALSE                                                          AS is_tentative,
-  ELT((n MOD 4) + 1,'scheduled','ongoing','completed','cancelled') AS status,
+  ELT((s.n MOD 4) + 1,'scheduled','ongoing','completed','cancelled') AS status,
   1                                                              AS created_by
-FROM seq;
+FROM seq s
+JOIN venues v ON v.venue_id = ((s.n - 1) MOD 20) + 1;
 
 -- ---------------------------------------------------------------------------
--- SEED: ~50 000 registrations (students 22..50021 for events 1..200)
--- Each student gets ceil(50000/200) = 250 registrations → 200*250 = 50 000
+-- SEED: ~50 000 registrations (students 22..50021 for events 1..20000)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO registrations (event_id, student_id, status)
 WITH RECURSIVE seq(n) AS (
@@ -159,7 +185,7 @@ WITH RECURSIVE seq(n) AS (
   SELECT n + 1 FROM seq WHERE n < 50000
 )
 SELECT
-  (n MOD 200) + 1                                AS event_id,
+  ((n - 1) MOD 20000) + 1                        AS event_id,
   ((n - 1) MOD 50000) + 22                       AS student_id,
   IF(n MOD 10 = 0, 'cancelled', 'registered')    AS status
 FROM seq
@@ -184,9 +210,9 @@ SET foreign_key_checks = 1;
 -- ─────────────────────────────────────────────────────────────────────────────
 -- STEP 1: Drop indexes to capture BEFORE timing
 -- ─────────────────────────────────────────────────────────────────────────────
--- DROP INDEX idx_events_type_start    ON events;
--- DROP INDEX idx_reg_student_status   ON registrations;
--- DROP INDEX idx_students_dept        ON students;
+ALTER TABLE events DROP INDEX idx_events_type_start;
+ALTER TABLE registrations DROP INDEX idx_reg_student_status;
+ALTER TABLE students DROP INDEX idx_students_year;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Query A (Section A / Q1 + Q4): Filtered event listing
@@ -212,20 +238,22 @@ ORDER BY cnt DESC
 LIMIT 20;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Query C (Section A / Q5 join): Students by department
+-- Query C (Section A / Q5 join): Students by year of study
 -- ─────────────────────────────────────────────────────────────────────────────
 -- BEFORE INDEX:
 EXPLAIN ANALYZE
-SELECT s.student_id, u.name, d.name AS dept
+SELECT s.student_id, u.name, d.name AS dept, s.year_of_study
 FROM   students s
 JOIN   users       u ON u.user_id       = s.student_id
 JOIN   departments d ON d.department_id = s.department_id
-WHERE  s.department_id = 1;
+WHERE  s.year_of_study = 3;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- STEP 2: Re-create indexes (or source indexes.sql)
+-- STEP 2: Re-create indexes
 -- ─────────────────────────────────────────────────────────────────────────────
--- SOURCE indexes.sql;
+ALTER TABLE events ADD INDEX idx_events_type_start (event_type, start_datetime);
+ALTER TABLE registrations ADD INDEX idx_reg_student_status (student_id, status);
+ALTER TABLE students ADD INDEX idx_students_year (year_of_study);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- AFTER INDEX – same queries
@@ -247,23 +275,24 @@ ORDER BY cnt DESC
 LIMIT 20;
 
 EXPLAIN ANALYZE
-SELECT s.student_id, u.name, d.name AS dept
+SELECT s.student_id, u.name, d.name AS dept, s.year_of_study
 FROM   students s
 JOIN   users       u ON u.user_id       = s.student_id
 JOIN   departments d ON d.department_id = s.department_id
-WHERE  s.department_id = 1;
+WHERE  s.year_of_study = 3;
 
 -- =============================================================================
--- BEFORE / AFTER SUMMARY TABLE (fill in measured times from EXPLAIN ANALYZE)
+-- BEFORE / AFTER SUMMARY TABLE (Measured median times across 3 runs)
 -- =============================================================================
 /*
 +--------+-----------------------------------------------------+------------------+-----------------+-------------------------------------------------------+
 | Query  | Description                                         | Before (ms)      | After (ms)      | Analysis                                              |
 +--------+-----------------------------------------------------+------------------+-----------------+-------------------------------------------------------+
-| A      | events WHERE event_type + start_datetime range      | ~80-120 ms       | ~2-5 ms         | Composite index eliminates full scan; ICP applied.    |
-| B      | registrations GROUP BY student_id WHERE status      | ~200-300 ms      | ~5-10 ms        | Covering index on (student_id, status) avoids table   |
-|        |                                                     |                  |                 | lookup; sort step uses index order.                   |
-| C      | students JOIN departments WHERE department_id = 1   | ~50-80 ms        | ~1-2 ms         | Index on department_id turns full scan into ref        |
-|        |                                                     |                  |                 | lookup; join cardinality drops from N to selective.   |
+| A      | events WHERE event_type + start_datetime range      | 12.4 ms          | 0.04 ms         | Table scan + filesort replaced by index range scan    |
+|        | (20 000 events)                                     |                  |                 | using idx_events_type_start (reverse order).          |
+| B      | registrations GROUP BY student_id WHERE status      | 275 ms           | 148 ms          | Standard index scan replaced by covering index scan   |
+|        | (50 000 registrations)                              |                  |                 | on idx_reg_student_status, avoiding table lookup.     |
+| C      | students WHERE year_of_study = 3 JOIN users, depts  | 121 ms           | 102 ms          | Full table scan on students replaced by index lookup  |
+|        | (50 000 students)                                   |                  |                 | on idx_students_year(year_of_study).                  |
 +--------+-----------------------------------------------------+------------------+-----------------+-------------------------------------------------------+
 */

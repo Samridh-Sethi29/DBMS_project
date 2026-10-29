@@ -1,8 +1,7 @@
 // src/routes/events.js
 import { Router } from 'express';
 import { z } from 'zod';
-import { readPool } from '../config/db.js';
-import { requireAuth, requireClubRank } from '../middleware/auth.js';
+import { requireAuth, requireClubRank, requireEntityClubRank } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   listEvents, createEvent, filterEvents, updateEvent,
@@ -15,19 +14,7 @@ const router = Router();
 // Shared datetime string check
 const dt = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/));
 
-const httpUrl = z.string().url().refine(
-  u => u.startsWith('http://') || u.startsWith('https://'),
-  { message: 'URL must start with http:// or https://' },
-);
-
-async function getEventClubId(req) {
-  const eventId = parseInt(req.params.id, 10);
-  if (!eventId) return null;
-  const [[e]] = await readPool.execute('SELECT club_id FROM events WHERE event_id = ?', [eventId]);
-  return e?.club_id || null;
-}
-
-const createEventSchema = z.object({
+const eventBase = z.object({
   club_id              : z.number().int().positive(),
   venue_id             : z.number().int().positive(),
   title                : z.string().min(3).max(150),
@@ -38,21 +25,80 @@ const createEventSchema = z.object({
   is_tentative         : z.boolean().optional().default(false),
   poster_url           : z.string().max(255).optional().nullable(),
   signup_mode          : z.enum(['none','internal','external']).optional().default('none'),
-  external_signup_url  : httpUrl.optional().nullable(),
+  external_signup_url  : z.string().url().max(255).optional().nullable(),
   registration_deadline: dt.optional().nullable(),
   max_participants     : z.number().int().positive().optional().nullable(),
-}).refine(
-  data => data.signup_mode !== 'external' || !!data.external_signup_url,
-  { message: 'external_signup_url is required when signup_mode is external', path: ['external_signup_url'] }
-).refine(
-  data => data.signup_mode !== 'internal' || (data.max_participants !== undefined && data.max_participants !== null),
-  { message: 'max_participants is required when signup_mode is internal', path: ['max_participants'] }
-);
-
-const updateEventSchema = createEventSchema.partial().extend({
-  recap_text: z.string().optional().nullable(),
-  status    : z.enum(['scheduled','ongoing','completed','cancelled']).optional(),
+  recap_text           : z.string().optional().nullable(),
+  status               : z.enum(['scheduled','ongoing','completed','cancelled']).optional(),
 });
+
+function checkEventRules(data, ctx) {
+  // 1. end_datetime > start_datetime
+  if (data.start_datetime && data.end_datetime) {
+    if (new Date(data.end_datetime) <= new Date(data.start_datetime)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'end_datetime must be after start_datetime',
+        path: ['end_datetime'],
+      });
+    }
+  }
+
+  // 2. registration_deadline <= start_datetime
+  if (data.registration_deadline && data.start_datetime) {
+    if (new Date(data.registration_deadline) > new Date(data.start_datetime)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'registration_deadline must be on or before start_datetime',
+        path: ['registration_deadline'],
+      });
+    }
+  }
+
+  // 3. external sign-up requires external_signup_url
+  if (data.signup_mode === 'external' && !data.external_signup_url) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'external_signup_url is required when signup_mode is external',
+      path: ['external_signup_url'],
+    });
+  }
+
+  // 4. internal sign-up requires max_participants
+  if (data.signup_mode === 'internal' && (data.max_participants === undefined || data.max_participants === null)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'max_participants is required when signup_mode is internal',
+      path: ['max_participants'],
+    });
+  }
+
+  // 5. URLs must start with http:// or https://
+  if (data.external_signup_url) {
+    const u = data.external_signup_url;
+    if (!u.startsWith('http://') && !u.startsWith('https://')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'external_signup_url must start with http:// or https://',
+        path: ['external_signup_url'],
+      });
+    }
+  }
+
+  if (data.poster_url) {
+    const u = data.poster_url;
+    if (u.includes('://') && !u.startsWith('http://') && !u.startsWith('https://')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'poster_url must start with http:// or https://',
+        path: ['poster_url'],
+      });
+    }
+  }
+}
+
+const createEventSchema = eventBase.superRefine(checkEventRules);
+const updateEventSchema = eventBase.omit({ club_id: true }).partial().superRefine(checkEventRules);
 
 const attendanceSchema = z.object({
   student_id: z.number().int().positive(),
@@ -69,15 +115,15 @@ const certSchema = z.object({
 router.get('/',         listEvents);
 // Q4
 router.get('/filter',   filterEvents);
-// Q2: Club core members (rank >= 2) or admin can create events
+// Q2: Club core members (rank >= 2) or admin can create events for club_id in body
 router.post('/',        requireAuth, requireClubRank(2, req => req.body.club_id), validate(createEventSchema), createEvent);
-// Q8: Club core members (rank >= 2) or admin can update events
-router.put('/:id',      requireAuth, requireClubRank(2, getEventClubId), validate(updateEventSchema), updateEvent);
+// Q8: Loads event from DB, takes club_id from DB row, never trusts body
+router.put('/:id',      requireAuth, requireEntityClubRank('event', 2), validate(updateEventSchema), updateEvent);
 
 // Business endpoints
 router.post('/:id/register',     requireAuth, registerForEvent);
 router.delete('/:id/register',   requireAuth, cancelRegistration);
-router.post('/:id/attendance',   requireAuth, requireClubRank(2, getEventClubId), validate(attendanceSchema), markAttendance);
-router.post('/:id/certificates', requireAuth, requireClubRank(2, getEventClubId), validate(certSchema), issueCertificate);
+router.post('/:id/attendance',   requireAuth, requireEntityClubRank('event', 2), validate(attendanceSchema), markAttendance);
+router.post('/:id/certificates', requireAuth, requireEntityClubRank('event', 2), validate(certSchema), issueCertificate);
 
 export default router;

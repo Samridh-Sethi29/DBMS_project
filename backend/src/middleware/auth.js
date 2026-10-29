@@ -66,8 +66,8 @@ export async function getClubRank(clubId, userId) {
 
 /**
  * requireClubRank(minRank, getClubIdFn)
- * Enforces per-request DB lookup of user's club permissions.
- * Never trusts JWT for club roles.
+ * Enforces per-request DB lookup of user's club permissions for creation routes
+ * where the club_id is provided in the body or query.
  */
 export function requireClubRank(minRank, getClubId) {
   return async (req, res, next) => {
@@ -77,7 +77,6 @@ export function requireClubRank(minRank, getClubId) {
           error: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
         });
       }
-      // If global admin, immediately permit
       if (req.user.role === 'admin') return next();
 
       const clubId = typeof getClubId === 'function' ? await getClubId(req) : (req.params.clubId || req.params.id || req.body.club_id);
@@ -87,6 +86,93 @@ export function requireClubRank(minRank, getClubId) {
         });
       }
 
+      const rank = await getClubRank(clubId, req.user.userId);
+      if (rank < minRank) {
+        return res.status(403).json({
+          error: {
+            code   : 'INSUFFICIENT_CLUB_PERMISSIONS',
+            message: `Requires club rank >= ${minRank}. Your rank: ${rank}.`,
+          },
+        });
+      }
+
+      req.clubId = clubId;
+      req.clubRank = rank;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+/**
+ * requireEntityClubRank(entityType, minRank)
+ * Loads the resource row from the database, extracts club_id from that row,
+ * attaches req.clubId = club_id, and checks fn_club_rank(club_id, req.user.userId) >= minRank.
+ * NEVER trusts club_id from req.body for PUT/DELETE/attendance/certificates.
+ */
+export function requireEntityClubRank(entityType, minRank) {
+  return async (req, res, next) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          error: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
+        });
+      }
+
+      const id = entityType === 'club'
+        ? parseInt(req.params.clubId || req.params.id, 10)
+        : parseInt(req.params.id || req.params.eventId || req.params.photoId, 10);
+
+      if (!id) {
+        return res.status(400).json({
+          error: { code: 'BAD_REQUEST', message: `Invalid ${entityType} ID parameter.` },
+        });
+      }
+
+      let clubId = null;
+
+      if (entityType === 'event') {
+        const [[event]] = await readPool.execute(
+          'SELECT club_id FROM events WHERE event_id = ?',
+          [id],
+        );
+        if (!event) {
+          return res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'Event not found.' },
+          });
+        }
+        clubId = event.club_id;
+      } else if (entityType === 'photo') {
+        const [[photo]] = await readPool.execute(
+          'SELECT e.club_id FROM event_photos ep JOIN events e ON e.event_id = ep.event_id WHERE ep.photo_id = ?',
+          [id],
+        );
+        if (!photo) {
+          return res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'Event photo not found.' },
+          });
+        }
+        clubId = photo.club_id;
+      } else if (entityType === 'club') {
+        const clubParamId = parseInt(req.params.clubId || req.params.id, 10);
+        const [[club]] = await readPool.execute(
+          'SELECT club_id FROM clubs WHERE club_id = ?',
+          [clubParamId],
+        );
+        if (!club) {
+          return res.status(404).json({
+            error: { code: 'NOT_FOUND', message: 'Club not found.' },
+          });
+        }
+        clubId = club.club_id;
+      }
+
+      // Always set req.resolvedClubId (and req.clubId for backward compatibility)
+      req.resolvedClubId = clubId;
+      req.clubId = clubId;
+
+      // No admin shortcut: entity is loaded above (404 if missing) and fn_club_rank decides
       const rank = await getClubRank(clubId, req.user.userId);
       if (rank < minRank) {
         return res.status(403).json({

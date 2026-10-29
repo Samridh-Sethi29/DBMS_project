@@ -10,8 +10,19 @@ import { timed } from '../middleware/timing.js';
 const SALT_ROUNDS = 12;
 
 // POST /auth/register
+// Always creates a user with role 'user' and creates the corresponding students record
+// in the same transaction using sp_insert_student. Any "role" in req.body is ignored.
 export async function register(req, res, next) {
-  const { name, email, password, role = 'user' } = req.body;
+  const {
+    name,
+    email,
+    password,
+    roll_no,
+    department_id,
+    year_of_study,
+    phone = null,
+  } = req.body;
+
   let conn;
   try {
     const { result: hash, executionTimeMs: hashMs } = await timed(() =>
@@ -20,18 +31,28 @@ export async function register(req, res, next) {
 
     conn = await writePool.getConnection();
 
-    const { result: userId, executionTimeMs } = await timed(async () => {
-      await conn.execute('SET @out_id = 0');
+    const { result: studentId, executionTimeMs } = await timed(async () => {
+      await conn.execute('SET @out_sid = 0');
       await conn.execute(
-        'CALL sp_user_register(:name, :email, :hash, :role, @out_id)',
-        { name, email, hash, role },
+        'CALL sp_insert_student(?, ?, ?, ?, ?, ?, ?, @out_sid)',
+        [name, email, hash, roll_no, department_id, year_of_study, phone || null],
       );
-      const [[{ out_id }]] = await conn.execute('SELECT @out_id AS out_id');
-      return out_id;
+      const [outRows] = await conn.execute('SELECT @out_sid AS out_sid');
+      return outRows[0]?.out_sid;
     });
 
     res.status(201).json({
-      data: { userId, name, email, role },
+      data: {
+        userId   : studentId,
+        studentId,
+        name,
+        email,
+        role     : 'user',
+        roll_no  : roll_no.toUpperCase(),
+        department_id,
+        year_of_study,
+        phone    : phone || null,
+      },
       meta: {
         rowCount       : 1,
         executionTimeMs: executionTimeMs + hashMs,

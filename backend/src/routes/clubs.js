@@ -1,7 +1,7 @@
 // src/routes/clubs.js
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireRole, requireClubRank } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireEntityClubRank } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   listClubs, getClub, createClub, updateClub, deleteClub,
@@ -31,7 +31,7 @@ const updateClubSchema = clubSchema.partial().extend({
 router.get('/',       listClubs);
 router.get('/:id',    getClub);
 router.post('/',      requireAuth, requireRole('admin'), validate(clubSchema), createClub);
-router.put('/:id',    requireAuth, requireClubRank(3, req => req.params.id), validate(updateClubSchema), updateClub);
+router.put('/:id',    requireAuth, requireEntityClubRank('club', 3), validate(updateClubSchema), updateClub);
 router.delete('/:id', requireAuth, requireRole('admin'), deleteClub);
 
 export default router;

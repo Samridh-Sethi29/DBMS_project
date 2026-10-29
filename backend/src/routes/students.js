@@ -10,7 +10,7 @@ import {
 const router = Router();
 
 function requireSelfOrAdmin(req, res, next) {
-  if (req.user?.role === 'admin' || req.user?.userId === parseInt(req.params.id, 10)) {
+  if (req.user?.role === 'admin' || req.user?.userId === Number(req.params.id)) {
     return next();
   }
   return res.status(403).json({
