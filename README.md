@@ -1,463 +1,427 @@
-# College Club and Event Management System
+<div align="center">
 
-Full-stack backend: **Node.js 20 + Express 4 + MySQL 8** (ES modules, mysql2/promise).
+<img src="docs/images/banner.svg" alt="CampusConnect – Your Campus. Your Community." width="100%"/>
+
+<br/>
+
+![React](https://img.shields.io/badge/React-18-6957E8?style=for-the-badge&logo=react&logoColor=white)
+![JavaScript](https://img.shields.io/badge/JavaScript-ES6+-10172A?style=for-the-badge&logo=javascript&logoColor=F7DF1E)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-16A085?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-6-6957E8?style=for-the-badge&logo=reactrouter&logoColor=white)
+![Status](https://img.shields.io/badge/Frontend-Complete-16A085?style=for-the-badge)
+![Backend](https://img.shields.io/badge/Backend-Ready_to_Connect-10172A?style=for-the-badge)
+
+**A modern, responsive college portal to discover events, join clubs, register in seconds, and relive campus memories.**
+
+[Features](#-features) · [Pages](#-pages) · [Quick Start](#-quick-start) · [Structure](#-project-structure) · [Backend Plan](#-backend-integration-plan) · [Roadmap](#-roadmap)
+
+</div>
 
 ---
 
-## File Tree
+## 📖 About
 
+**CampusConnect** is a student-facing, frontend-only campus portal. Students can browse upcoming and past events, register with a validated form, explore clubs, and browse a gallery of event memories — all powered by local mock data and `localStorage`.
+
+> 💡 The project name is a placeholder. Rename it anywhere you like (navbar, footer, `index.html`, this README).
+
+The codebase is intentionally structured around a **service layer**, so replacing mock data with a **Node.js + Express.js + MySQL** REST API later takes minimal changes.
+
+---
+
+## ✨ Features
+
+| | Feature | Description |
+|---|---|---|
+| 🏠 | **Homepage** | Hero, featured events, club previews, memories preview, live stats |
+| 📅 | **Events** | Search, category filters, Upcoming/Past tabs, date sorting, empty states |
+| 📝 | **Registration** | Validated form, success confirmation, duplicate prevention |
+| 🎟️ | **My Registrations** | View registered events and their status |
+| 🏛️ | **Clubs** | Searchable, filterable directory with detailed club pages |
+| 📸 | **Memories** | Gallery with category and year filters plus a detail view |
+| 🔐 | **Login (simulated)** | Email/password UI and a one-click Demo Student Login |
+| 📱 | **Responsive** | Desktop, tablet and mobile layouts |
+| ♿ | **Accessible** | Labels, keyboard navigation, visible focus states |
+| 🖼️ | **Image fallbacks** | Graceful placeholders if an image URL fails |
+
+---
+
+## 🎨 Design System
+
+<img src="docs/images/palette.svg" alt="Color palette" width="100%"/>
+
+| Token | Hex | Used for |
+|---|---|---|
+| Midnight Navy | `#10172A` | Navbar, footer, headings, primary text |
+| Electric Violet | `#6957E8` | Primary buttons, links, highlights |
+| Teal | `#16A085` | Success states, "Open" badges, accents |
+| Soft Background | `#F4F6FB` | Page background |
+| White | `#FFFFFF` | Cards and surfaces |
+
+**Typography:** Inter (or Manrope) · **Style:** white cards, subtle borders, soft shadows, rounded corners, gentle hover transitions.
+
+<details>
+<summary><b>Suggested Tailwind config</b></summary>
+
+```js
+// tailwind.config.js
+export default {
+  content: ["./index.html", "./src/**/*.{js,jsx}"],
+  theme: {
+    extend: {
+      colors: {
+        navy: "#10172A",
+        violet: { DEFAULT: "#6957E8" },
+        teal: { DEFAULT: "#16A085" },
+        soft: "#F4F6FB",
+      },
+      fontFamily: { sans: ["Inter", "Manrope", "system-ui", "sans-serif"] },
+    },
+  },
+  plugins: [],
+};
 ```
-DBMS Project/
-├── sql/
-│   ├── schema.sql        ← Run first: DDL, base views (v_event_participation etc.)
-│   ├── procedures.sql    ← Stored procedures (sp_insert_*, sp_update_*, sp_register_student …)
-│   ├── accounts.sql      ← MySQL roles + users (role_naive / role_developer / role_dba)
-│   ├── cursors.sql       ← sp_cursor_all, sp_cursor_batched
-│   ├── functions.sql     ← fn_total_capacity, sp_search_events, sp_sum_grouped, sp_sum_column
-│   ├── triggers.sql      ← All 20+ triggers (validation, audit, Monday block, uppercase)
-│   ├── views.sql         ← v_computer_engineering_students + trigger-through-view demo
-│   ├── indexes.sql       ← 4 performance indexes
-│   └── perf_test.sql     ← 50 000-row seed + BEFORE/AFTER EXPLAIN ANALYZE
-├── src/
-│   ├── app.js            ← Express entry point
-│   ├── config/
-│   │   └── db.js         ← readPool (role_naive) + writePool (role_developer)
-│   ├── middleware/
-│   │   ├── auth.js       ← requireAuth, requireRole, signToken
-│   │   ├── validate.js   ← Zod schema validation factory
-│   │   ├── errorHandler.js ← MySQL error → HTTP status mapping
-│   │   └── timing.js     ← process.hrtime.bigint() helpers
-│   ├── routes/
-│   │   ├── auth.js
-│   │   ├── events.js
-│   │   ├── students.js
-│   │   ├── clubs.js
-│   │   ├── venues.js
-│   │   └── query.js      ← aggregate, join, subquery, correlated, dashboard, reports
-│   ├── controllers/
-│   │   ├── authController.js
-│   │   ├── eventsController.js
-│   │   ├── studentsController.js
-│   │   ├── clubsController.js
-│   │   ├── venuesController.js
-│   │   ├── aggregateController.js
-│   │   ├── joinController.js
-│   │   ├── subqueryController.js
-│   │   ├── correlatedController.js
-│   │   ├── dashboardController.js
-│   │   └── reportsController.js
-│   └── utils/
-│       ├── xml.js         ← toXml() / sendXml()  (special-char escaping)
-│       ├── pagination.js  ← parsePagination, paginated envelope
-│       └── allowlists.js  ← ALL dynamic identifiers live here (SQL-injection prevention)
-├── .env.example
-└── package.json
+
+</details>
+
+---
+
+## 🖥️ Pages
+
+<img src="docs/images/screens.svg" alt="UI preview of Home, Events and Registration pages" width="100%"/>
+
+> 📌 Replace this illustration with real screenshots once you run the app (see [Screenshots](#-screenshots)).
+
+| Route | Page | Highlights |
+|---|---|---|
+| `/` | Home | Hero, featured events, clubs, memories, stats, footer |
+| `/events` | Events | Search, filter, tabs, sort, cards with status badges |
+| `/events/:id` | Event Details | Cover image, info, deadline, registration form |
+| `/my-registrations` | My Registrations | Registered events with status |
+| `/clubs` | Club Directory | Search and category filter |
+| `/clubs/:id` | Club Details | Banner, chairperson, events, memories, website link |
+| `/memories` | Memories | Gallery, category/year filters, detail view |
+| `/login` | Login | Simulated login and demo student account |
+| `*` | Not Found | Friendly fallback with link home |
+
+### 🧭 User Flow
+
+```mermaid
+flowchart LR
+    A([Visit Home]) --> B[Browse Events]
+    A --> C[Discover Clubs]
+    A --> D[View Memories]
+    B --> E[Event Details]
+    E --> F{Logged in?}
+    F -- No --> G[Login / Demo Student]
+    G --> E
+    F -- Yes --> H[Fill Registration Form]
+    H --> I{Valid and not duplicate?}
+    I -- No --> H
+    I -- Yes --> J[✅ Confirmation]
+    J --> K[My Registrations]
+    C --> L[Club Details]
+    L --> E
+    L --> D
+
+    style A fill:#10172A,color:#fff,stroke:#10172A
+    style J fill:#16A085,color:#fff,stroke:#16A085
+    style H fill:#6957E8,color:#fff,stroke:#6957E8
 ```
 
 ---
 
-## Prerequisites
+## 🚀 Quick Start
 
-| Tool | Version |
-|------|---------|
-| Node.js | ≥ 20 |
-| MySQL | 8.0+ |
-| npm | ≥ 9 |
+**Prerequisites:** Node.js 18+ and npm.
 
----
+```bash
+# 1. Clone the repository
+git clone <your-repo-url>
+cd <project-folder>
 
-## Setup
-
-### 1 — Clone and install dependencies
-
-```powershell
-cd "DBMS Project"
+# 2. Install dependencies
 npm install
+
+# 3. Start the dev server
+npm run dev        # Vite  (use `npm start` if you used Create React App)
+
+# 4. Build for production
+npm run build
+npm run preview
 ```
 
-### 2 — Create the database
+Open the local URL printed in your terminal (Vite default: `http://localhost:5173`).
 
-```sql
--- In MySQL Workbench or mysql CLI as root:
-CREATE DATABASE club_event_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+### 🔑 Demo Login
+
+No real authentication exists. Click **Demo Student Login** on `/login`, or enter any valid-looking college email and a password. Passwords are **never** stored.
+
+---
+
+## 🧰 Tech Stack
+
+```mermaid
+pie showData title Frontend Composition (approximate)
+    "React Components (JSX)" : 55
+    "Tailwind CSS Styling" : 25
+    "Mock Data & Services" : 15
+    "Utilities & Config" : 5
 ```
 
-### 3 — Run SQL files **in this exact order**
+| Layer | Technology |
+|---|---|
+| UI | React.js (JavaScript / JSX) |
+| Styling | Tailwind CSS |
+| Routing | React Router |
+| State | React hooks, Context API |
+| Persistence (demo) | `localStorage` — registrations and UI preferences only |
+| Data | Local mock files in `src/data` |
 
-```powershell
-# Replace root / password as needed
-$M = "mysql -u root -p club_event_db"
+---
 
-Invoke-Expression "$M < sql\schema.sql"
-Invoke-Expression "$M < sql\procedures.sql"
-Invoke-Expression "$M < sql\accounts.sql"
-Invoke-Expression "$M < sql\cursors.sql"
-Invoke-Expression "$M < sql\functions.sql"
-Invoke-Expression "$M < sql\triggers.sql"
-Invoke-Expression "$M < sql\views.sql"
-Invoke-Expression "$M < sql\indexes.sql"
-# Optional – seeds 50 000 rows and runs EXPLAIN ANALYZE:
-Invoke-Expression "$M < sql\perf_test.sql"
+## 📊 Mock Data Overview
+
+```mermaid
+pie showData title Sample Events by Category
+    "Cultural" : 4
+    "Technical" : 5
+    "Sports" : 3
+    "Literary" : 2
+    "Workshops" : 4
+    "Other" : 2
 ```
 
-Or use the MySQL CLI directly:
+> Update these numbers to match your actual `src/data/events.js`.
 
-```bash
-mysql -u root -p club_event_db < sql/schema.sql
-mysql -u root -p club_event_db < sql/procedures.sql
-mysql -u root -p club_event_db < sql/accounts.sql
-mysql -u root -p club_event_db < sql/cursors.sql
-mysql -u root -p club_event_db < sql/functions.sql
-mysql -u root -p club_event_db < sql/triggers.sql
-mysql -u root -p club_event_db < sql/views.sql
-mysql -u root -p club_event_db < sql/indexes.sql
-mysql -u root -p club_event_db < sql/perf_test.sql
-```
-
-### 4 — Configure environment
-
-```powershell
-Copy-Item .env.example .env
-# Edit .env – set DB_READ_PASS, DB_WRITE_PASS, JWT_SECRET
-```
-
-Key `.env` values:
-
-| Key | Description |
-|-----|-------------|
-| `PORT` | HTTP port (default 3000) |
-| `JWT_SECRET` | Min 64 random chars |
-| `JWT_EXPIRES_IN` | Token lifetime (e.g. `8h`) |
-| `DB_HOST` | MySQL host |
-| `DB_PORT` | MySQL port (default 3306) |
-| `DB_NAME` | `club_event_db` |
-| `DB_READ_USER` | `user_naive` |
-| `DB_READ_PASS` | `NaivePass#123` (change this) |
-| `DB_WRITE_USER` | `user_developer` |
-| `DB_WRITE_PASS` | `DevPass#456` (change this) |
-
-### 5 — Start the server
-
-```powershell
-# Development (auto-restart on change, Node 20+):
-npm run dev
-
-# Production:
-npm start
+```mermaid
+xychart-beta
+    title "Sample Memories per Year"
+    x-axis [2022, 2023, 2024, 2025, 2026]
+    y-axis "Photos" 0 --> 20
+    bar [4, 8, 12, 15, 10]
 ```
 
 ---
 
-## npm Scripts
+## 🗂️ Project Structure
 
-| Script | Command |
-|--------|---------|
-| `npm start` | `node src/app.js` |
-| `npm run dev` | `node --watch src/app.js` |
+```text
+src/
+├── assets/                 # Logos, fallback images
+├── components/             # Reusable UI
+│   ├── Navbar.jsx
+│   ├── Footer.jsx
+│   ├── EventCard.jsx
+│   ├── ClubCard.jsx
+│   ├── MemoryCard.jsx
+│   ├── SearchBar.jsx
+│   ├── CategoryFilter.jsx
+│   ├── StatusBadge.jsx
+│   ├── RegistrationForm.jsx
+│   └── ImageWithFallback.jsx
+├── pages/
+│   ├── Home.jsx
+│   ├── Events.jsx
+│   ├── EventDetails.jsx
+│   ├── MyRegistrations.jsx
+│   ├── Clubs.jsx
+│   ├── ClubDetails.jsx
+│   ├── Memories.jsx
+│   ├── Login.jsx
+│   └── NotFound.jsx
+├── data/                   # Mock data (events, clubs, memories, stats)
+├── services/               # 🔌 Data-access layer (swap for API calls later)
+│   ├── eventService.js
+│   ├── clubService.js
+│   ├── memoryService.js
+│   ├── registrationService.js
+│   └── authService.js
+├── context/                # Auth / app context
+├── hooks/                  # Custom hooks (e.g. useLocalStorage)
+├── utils/                  # Validators, date formatters, constants
+├── App.jsx                 # Routes
+├── main.jsx                # Entry point
+└── index.css               # Tailwind directives
+```
+
+> Adjust file names if your actual structure differs.
 
 ---
 
-## Environment Variable Summary
+## 🔌 Backend Integration Plan
 
-```env
-PORT=3000
-NODE_ENV=development
-JWT_SECRET=<64+ random chars>
-JWT_EXPIRES_IN=8h
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=club_event_db
-DB_READ_USER=user_naive
-DB_READ_PASS=NaivePass#123
-DB_WRITE_USER=user_developer
-DB_WRITE_PASS=DevPass#456
+Pages and components **never** import mock data directly — they call the service layer. To go live, only the files in `src/services/` need to change.
+
+<img src="docs/images/architecture.svg" alt="Architecture: Pages → Components → Service Layer → Mock Data or Express + MySQL" width="100%"/>
+
+**Today (mock):**
+
+```js
+// src/services/eventService.js
+import { events } from "../data/events";
+
+export async function getEvents() {
+  return events;
+}
+```
+
+**Later (REST API):**
+
+```js
+// src/services/eventService.js
+const API_URL = import.meta.env.VITE_API_URL;
+
+export async function getEvents() {
+  const res = await fetch(`${API_URL}/events`);
+  if (!res.ok) throw new Error("Failed to load events");
+  return res.json();
+}
+```
+
+### Planned REST Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/events` | List events (query: `category`, `status`, `q`) |
+| `GET` | `/api/events/:id` | Event details |
+| `POST` | `/api/events/:id/register` | Register for an event |
+| `GET` | `/api/registrations/me` | Current student's registrations |
+| `GET` | `/api/clubs` | List clubs |
+| `GET` | `/api/clubs/:id` | Club details |
+| `GET` | `/api/memories` | List memories (query: `category`, `year`) |
+| `POST` | `/api/auth/login` | Authenticate student |
+
+### Suggested MySQL Tables
+
+```mermaid
+erDiagram
+    CLUBS ||--o{ EVENTS : organizes
+    EVENTS ||--o{ REGISTRATIONS : receives
+    EVENTS ||--o{ MEMORIES : produces
+    STUDENTS ||--o{ REGISTRATIONS : makes
+
+    CLUBS {
+        int id PK
+        string name
+        string category
+        string chairperson
+        string website_url
+    }
+    EVENTS {
+        int id PK
+        int club_id FK
+        string title
+        string category
+        datetime start_time
+        string venue
+        date registration_deadline
+    }
+    STUDENTS {
+        int id PK
+        string name
+        string college_email
+        string student_id
+    }
+    REGISTRATIONS {
+        int id PK
+        int event_id FK
+        int student_id FK
+        string status
+        datetime created_at
+    }
+    MEMORIES {
+        int id PK
+        int event_id FK
+        string image_url
+        string caption
+        int year
+    }
 ```
 
 ---
 
-## curl Examples — Every Endpoint
+## 🔒 Privacy & Security Notes
 
-> Replace `<TOKEN>` with the JWT returned by `/auth/login`.
+- ✅ `localStorage` holds **only** demo registrations and non-sensitive UI preferences.
+- ❌ Passwords are **never** stored or processed.
+- ❌ No real authentication — all login logic is simulated in `authService.js`.
+- 🔁 Replace the simulated login with secure, server-side authentication (e.g. JWT in httpOnly cookies) when the backend arrives.
 
-### Auth
+---
 
-```bash
-# Register
-curl -s -X POST http://localhost:3000/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Alice","email":"alice@college.edu","password":"Secret#123","role":"coordinator"}'
+## 📷 Screenshots
 
-# Login
-curl -s -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"alice@college.edu","password":"Secret#123"}'
+Add real screenshots after running the app:
+
+| Home | Events | Event Details |
+|---|---|---|
+| `docs/images/home.png` | `docs/images/events.png` | `docs/images/details.png` |
+
+| Clubs | Memories | Login |
+|---|---|---|
+| `docs/images/clubs.png` | `docs/images/memories.png` | `docs/images/login.png` |
+
+Then embed them like this:
+
+```md
+![Home page](docs/images/home.png)
 ```
 
 ---
 
-### Q1 — GET /api/events (paginated, optional XML)
+## 🗺️ Roadmap
 
-```bash
-# JSON
-curl "http://localhost:3000/api/events?page=1&pageSize=10"
-
-# XML
-curl "http://localhost:3000/api/events?page=1&pageSize=10&format=xml"
+```mermaid
+gantt
+    title CampusConnect Roadmap
+    dateFormat  YYYY-MM-DD
+    axisFormat  %b
+    section Frontend
+    Layout, components, mock data     :done,    f1, 2026-09-01, 21d
+    All student pages                 :done,    f2, after f1, 21d
+    Polish and accessibility          :active,  f3, after f2, 14d
+    section Backend
+    Express + MySQL API               :         b1, after f3, 28d
+    Replace service layer             :         b2, after b1, 7d
+    Real authentication               :         b3, after b2, 14d
 ```
+
+- [x] Shared layout and reusable components
+- [x] Events, clubs, memories, login pages
+- [x] Registration with validation and duplicate prevention
+- [ ] Connect Node.js + Express + MySQL backend
+- [ ] Real authentication
+- [ ] Admin dashboard for organizers
+- [ ] Email confirmations and reminders
 
 ---
 
-### Q2 — POST /api/events (create via sp_insert_event)
+## 🤝 Contributing
 
-```bash
-curl -s -X POST http://localhost:3000/api/events \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
-  -d '{
-    "club_id": 1,
-    "venue_id": 1,
-    "title": "Hackathon 2025",
-    "description": "24-hour coding event",
-    "event_type": "technical",
-    "start_datetime": "2025-11-15T09:00:00",
-    "end_datetime": "2025-11-16T09:00:00",
-    "registration_deadline": "2025-11-10T23:59:00",
-    "max_participants": 200
-  }'
-```
-
-### POST /api/students (Q2 — student creation)
-
-```bash
-curl -s -X POST http://localhost:3000/api/students \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
-  -d '{
-    "name": "Bob Smith",
-    "email": "bob@college.edu",
-    "password_hash": "$2b$12$alreadyhashed_value_here",
-    "roll_no": "CE2024001",
-    "department_id": 1,
-    "year_of_study": 2,
-    "phone": "9876543210"
-  }'
-```
+1. Fork the repo and create a branch: `git checkout -b feature/your-feature`
+2. Keep components reusable and Tailwind-only (no inline style sprawl).
+3. Don't import mock data inside components — go through `src/services`.
+4. Commit with clear messages and open a pull request.
 
 ---
 
-### Q3 — GET /api/aggregate (optional XML)
+## 📬 Contact
 
-```bash
-# COUNT registrations
-curl "http://localhost:3000/api/aggregate?table=registrations&column=registration_id&fn=COUNT"
+| | |
+|---|---|
+| 👤 Maintainer | *Your Name* |
+| 📧 Email | `your.email@college.edu` |
+| 🌐 Website | `https://example.edu` |
 
-# SUM venue capacity
-curl "http://localhost:3000/api/aggregate?table=venues&column=capacity&fn=SUM"
-
-# AVG max_participants (XML output)
-curl "http://localhost:3000/api/aggregate?table=events&column=max_participants&fn=AVG&format=xml"
-```
+> All contact details are placeholders — replace them with your own.
 
 ---
 
-### Q4 — GET /api/events/filter (optional XML)
+<div align="center">
 
-```bash
-# Events of type 'technical'
-curl "http://localhost:3000/api/events/filter?field=event_type&op==&value=technical"
+Made with 💜 for the campus community
 
-# Events with max_participants > 100
-curl "http://localhost:3000/api/events/filter?field=max_participants&op=%3E&value=100"
+**[⬆ Back to top](#)**
 
-# Events by status LIKE 'sched%'  (LIKE expands to %value%)
-curl "http://localhost:3000/api/events/filter?field=status&op=LIKE&value=sched"
-
-# BETWEEN dates
-curl "http://localhost:3000/api/events/filter?field=start_datetime&op=BETWEEN&value=2025-01-01&value2=2025-12-31"
-
-# XML output
-curl "http://localhost:3000/api/events/filter?field=event_type&op==&value=workshop&format=xml"
-```
-
----
-
-### Q5 — GET /api/join
-
-```bash
-# INNER JOIN events + clubs
-curl "http://localhost:3000/api/join?left=events&right=clubs&type=INNER&pageSize=5"
-
-# LEFT JOIN registrations + students
-curl "http://localhost:3000/api/join?left=registrations&right=students&type=LEFT"
-
-# FULL OUTER (emulated via UNION)
-curl "http://localhost:3000/api/join?left=events&right=venues&type=FULL"
-```
-
----
-
-### Q6 — GET /api/subquery
-
-```bash
-# Students registered for any event of club 1
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/subquery?option=students_in_club_events&club_id=1"
-
-# Clubs with above-average approved membership
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/subquery?option=clubs_above_avg_membership"
-
-# Events with no registrations at all
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/subquery?option=events_no_registrations"
-```
-
----
-
-### Q7 — GET /api/correlated
-
-```bash
-# Events whose registration count exceeds their club's average
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/correlated?option=events_above_club_avg"
-
-# Students registered for more events than the average student
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/correlated?option=students_above_avg_events"
-```
-
----
-
-### Q8 — PUT /api/events/:id (update via sp_update_event)
-
-```bash
-curl -s -X PUT http://localhost:3000/api/events/1 \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
-  -d '{
-    "venue_id": 2,
-    "title": "Hackathon 2025 – Updated",
-    "description": "48-hour marathon",
-    "event_type": "technical",
-    "start_datetime": "2025-11-15T09:00:00",
-    "end_datetime": "2025-11-17T09:00:00",
-    "registration_deadline": "2025-11-10T23:59:00",
-    "max_participants": 150,
-    "status": "scheduled"
-  }'
-```
-
----
-
-### Dashboard
-
-```bash
-curl -H "Authorization: Bearer <TOKEN>" http://localhost:3000/api/dashboard
-```
-
----
-
-### Reports (views)
-
-```bash
-# Participation report (v_event_participation)
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/reports/participation?page=1&pageSize=20"
-
-# Membership report (v_club_membership)
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/reports/membership"
-
-# Student history (v_student_history) for student_id = 22
-curl -H "Authorization: Bearer <TOKEN>" \
-  "http://localhost:3000/api/reports/student/22"
-```
-
----
-
-### Business Endpoints
-
-```bash
-# Register student for an event (calls sp_register_student with row lock)
-curl -s -X POST http://localhost:3000/api/events/1/register \
-  -H "Authorization: Bearer <STUDENT_TOKEN>"
-
-# Cancel registration
-curl -s -X DELETE http://localhost:3000/api/events/1/register \
-  -H "Authorization: Bearer <STUDENT_TOKEN>"
-
-# Mark attendance
-curl -s -X POST http://localhost:3000/api/events/1/attendance \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <COORDINATOR_TOKEN>" \
-  -d '{"student_id": 22, "status": "present"}'
-
-# Issue certificate (student must be present)
-curl -s -X POST http://localhost:3000/api/events/1/certificates \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <COORDINATOR_TOKEN>" \
-  -d '{"student_id": 22, "certificate_type": "participation"}'
-```
-
----
-
-### CRUD — Clubs & Venues
-
-```bash
-# Create club (admin only)
-curl -s -X POST http://localhost:3000/api/clubs \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <ADMIN_TOKEN>" \
-  -d '{"name":"AI Club","description":"ML & AI","category_id":1,"coordinator_id":2}'
-
-# Create venue (admin only)
-curl -s -X POST http://localhost:3000/api/venues \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <ADMIN_TOKEN>" \
-  -d '{"name":"Main Hall","location":"Block A","capacity":500}'
-
-# Update venue
-curl -s -X PUT http://localhost:3000/api/venues/1 \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <ADMIN_TOKEN>" \
-  -d '{"name":"Auditorium A","location":"Block A","capacity":1000}'
-
-# Delete venue (soft if events pending)
-curl -s -X DELETE http://localhost:3000/api/venues/5 \
-  -H "Authorization: Bearer <ADMIN_TOKEN>"
-
-# List clubs
-curl "http://localhost:3000/api/clubs?page=1&pageSize=5"
-
-# Get single club
-curl "http://localhost:3000/api/clubs/1"
-```
-
----
-
-### Health Check
-
-```bash
-curl http://localhost:3000/health
-```
-
----
-
-## Architecture Notes
-
-| Concern | Implementation |
-|---------|----------------|
-| SQL injection | ALL identifiers (table/column/operator/join type) resolved from server-side `allowlists.js`; user input never interpolated |
-| Parameterized queries | `namedPlaceholders: true`; every value bound via `?` or `:name` |
-| MySQL error mapping | `errorHandler.js`: SIGNAL 45000 → 409/404, ER_DUP_ENTRY → 409, ER_NO_REFERENCED_ROW → 400 |
-| Timing | `process.hrtime.bigint()` wraps every query; `executionTimeMs` in every response |
-| Transaction safety | `conn.beginTransaction()` / `COMMIT` / `ROLLBACK` in finally; connection always released |
-| Dual pools | `readPool` (role_naive) for GETs; `writePool` (role_developer) for mutations |
-| XML | `utils/xml.js` escapes `& < > " '`; sent with `Content-Type: application/xml` |
-| Pagination | `page` + `pageSize` (max 100) on every list endpoint |
-| FULL OUTER JOIN | Emulated with `LEFT JOIN UNION RIGHT JOIN` (MySQL limitation) |
-| Statement-level triggers | Not supported in MySQL – row-level triggers used; noted in `triggers.sql` |
-
----
-
-**Assumption:** The `club_event_db` database already exists (CREATE DATABASE run manually or via mysql client before sourcing schema.sql); password-hashing in the `/auth/register` endpoint uses bcrypt with salt rounds = 12 in Node before calling `sp_user_register`.
+</div>
