@@ -14,16 +14,19 @@ export function parsePagination(query) {
 }
 
 /**
- * Builds a standard paginated response envelope.
+ * Builds a standard paginated response envelope: { data, meta }
  */
 export function paginated({ data, total, page, pageSize, executionTimeMs }) {
   return {
     data,
-    rowCount       : data.length,
-    total,
-    page,
-    pageSize,
-    totalPages     : Math.ceil(total / pageSize),
-    executionTimeMs,
+    meta: {
+      rowCount  : data.length,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+      executionTimeMs,
+    },
   };
 }
+

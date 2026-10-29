@@ -139,7 +139,7 @@ BEGIN
 
   -- Safe: table and column names come from our allowlist, not from user input.
   -- We use prepared statements for safety/clarity even though names are trusted.
-  SET @sql = CONCAT('SELECT COUNT(*) AS row_count, SUM(`', p_column, '`) AS total_sum'
+  SET @sql = CONCAT('SELECT COUNT(*) AS row_count, SUM(`', p_column, '`) AS total_sum',
                     ' FROM `', p_table, '`');
   PREPARE stmt FROM @sql;
   EXECUTE stmt;

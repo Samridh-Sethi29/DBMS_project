@@ -26,7 +26,6 @@ CREATE INDEX idx_reg_student_status ON registrations (student_id, status);
 DROP INDEX IF EXISTS idx_students_dept ON students;
 CREATE INDEX idx_students_dept ON students (department_id);
 
--- (Optional) Index 4: events(venue_id, start_datetime, end_datetime)
--- Speeds up the venue overlap check trigger.
-DROP INDEX IF EXISTS idx_events_venue_overlap ON events;
-CREATE INDEX idx_events_venue_overlap ON events (venue_id, start_datetime, end_datetime);
+-- Note: events(venue_id, start_datetime, end_datetime) is already indexed as
+-- idx_event_venue_time in schema.sql.
+

@@ -42,11 +42,11 @@ function toXmlFragment(value, tag = 'item') {
  * @param {string}  [options.root]     – root element tag (default 'response')
  * @param {string}  [options.itemTag]  – tag for each array item (default 'row')
  */
-export function toXml({ data, rowCount, executionTimeMs, root = 'response', itemTag = 'row' }) {
-  const meta = [
-    `<rowCount>${rowCount}</rowCount>`,
-    `<executionTimeMs>${executionTimeMs}</executionTimeMs>`,
-  ].join('\n');
+export function toXml({ data, meta, rowCount, executionTimeMs, root = 'response', itemTag = 'row' }) {
+  const metaObj = meta || { rowCount, executionTimeMs };
+  const metaXml = Object.entries(metaObj)
+    .map(([k, v]) => `<${k}>${escapeXml(v)}</${k}>`)
+    .join('\n');
 
   let dataXml;
   if (Array.isArray(data)) {
@@ -55,7 +55,7 @@ export function toXml({ data, rowCount, executionTimeMs, root = 'response', item
     dataXml = `<data>\n${toXmlFragment(data, itemTag)}\n</data>`;
   }
 
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<${root}>\n${meta}\n${dataXml}\n</${root}>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<${root}>\n<meta>\n${metaXml}\n</meta>\n${dataXml}\n</${root}>`;
 }
 
 /**

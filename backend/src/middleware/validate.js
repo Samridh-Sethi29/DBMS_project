@@ -1,22 +1,26 @@
 // src/middleware/validate.js
 // Zod-based request validation factory.
+// Returns { error: { code, message, fields } } on validation failure.
 
 import { ZodError } from 'zod';
 
 /**
- * validate(schema) – validates req.body against a Zod schema.
- * On failure returns 422 with per-field error messages.
+ * validate(schema, source = 'body') – validates req[source] against a Zod schema.
+ * On failure returns 422 with per-field error messages in standard envelope.
  */
-export function validate(schema) {
+export function validate(schema, source = 'body') {
   return (req, res, next) => {
     try {
-      req.body = schema.parse(req.body);
+      req[source] = schema.parse(req[source]);
       next();
     } catch (err) {
       if (err instanceof ZodError) {
         return res.status(422).json({
-          error : 'Validation failed.',
-          fields: err.errors.map(e => ({ path: e.path.join('.'), message: e.message })),
+          error: {
+            code   : 'VALIDATION_ERROR',
+            message: 'Validation failed.',
+            fields : err.errors.map(e => ({ path: e.path.join('.'), message: e.message })),
+          },
         });
       }
       next(err);

@@ -6,7 +6,7 @@
 import { readPool } from '../config/db.js';
 import { timed } from '../middleware/timing.js';
 import { parsePagination, paginated } from '../utils/pagination.js';
-import { badRequest } from '../middleware/errorHandler.js';
+import { badRequest, notFound } from '../middleware/errorHandler.js';
 
 export async function participation(req, res, next) {
   try {
@@ -14,7 +14,7 @@ export async function participation(req, res, next) {
     const { result, executionTimeMs } = await timed(async () => {
       const [[{ total }]] = await readPool.execute('SELECT COUNT(*) AS total FROM v_event_participation');
       const [rows] = await readPool.execute(
-        'SELECT * FROM v_event_participation ORDER BY start_datetime DESC LIMIT ? OFFSET ?',
+        'SELECT * FROM v_event_participation ORDER BY event_id DESC LIMIT ? OFFSET ?',
         [pageSize, offset],
       );
       return { rows, total };
@@ -31,7 +31,7 @@ export async function membership(req, res, next) {
     const { result, executionTimeMs } = await timed(async () => {
       const [[{ total }]] = await readPool.execute('SELECT COUNT(*) AS total FROM v_club_membership');
       const [rows] = await readPool.execute(
-        'SELECT * FROM v_club_membership ORDER BY total_members DESC LIMIT ? OFFSET ?',
+        'SELECT * FROM v_club_membership ORDER BY approved_members DESC, club_id ASC LIMIT ? OFFSET ?',
         [pageSize, offset],
       );
       return { rows, total };
@@ -54,13 +54,18 @@ export async function studentHistory(req, res, next) {
         [studentId],
       );
       const [rows] = await readPool.execute(
-        'SELECT * FROM v_student_history WHERE student_id = ? LIMIT ? OFFSET ?',
+        'SELECT * FROM v_student_history WHERE student_id = ? ORDER BY start_datetime DESC LIMIT ? OFFSET ?',
         [studentId, pageSize, offset],
       );
       return { rows, total };
     });
 
-    if (!result.total) return next(badRequest('Student not found.'));
+    if (!result.total) {
+      // Check if student exists in students table
+      const [[st]] = await readPool.execute('SELECT student_id FROM students WHERE student_id = ?', [studentId]);
+      if (!st) return next(notFound('Student not found.'));
+    }
+
     res.json(paginated({ data: result.rows, total: result.total, page, pageSize, executionTimeMs }));
   } catch (err) {
     next(err);

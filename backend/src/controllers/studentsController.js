@@ -4,7 +4,7 @@
 import { readPool, writePool } from '../config/db.js';
 import { timed } from '../middleware/timing.js';
 import { parsePagination, paginated } from '../utils/pagination.js';
-import { badRequest } from '../middleware/errorHandler.js';
+import { notFound } from '../middleware/errorHandler.js';
 
 // GET /api/students
 export async function listStudents(req, res, next) {
@@ -13,7 +13,7 @@ export async function listStudents(req, res, next) {
 
     const { result, executionTimeMs } = await timed(async () => {
       const [[{ total }]] = await readPool.execute(
-        `SELECT COUNT(*) AS total FROM students s JOIN users u ON u.user_id = s.student_id WHERE u.is_active = 1`
+        'SELECT COUNT(*) AS total FROM students s JOIN users u ON u.user_id = s.student_id WHERE u.is_active = 1'
       );
       const [rows] = await readPool.execute(
         `SELECT s.*, u.name, u.email, u.role, d.name AS department_name
@@ -48,8 +48,11 @@ export async function getStudent(req, res, next) {
       )
     );
     const [rows] = result;
-    if (!rows.length) return next(badRequest('Student not found.'));
-    res.json({ data: rows[0], rowCount: 1, executionTimeMs });
+    if (!rows.length) return next(notFound('Student not found.'));
+    res.json({
+      data: rows[0],
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   }
@@ -67,7 +70,7 @@ export async function createStudent(req, res, next) {
       await conn.execute(
         `CALL sp_insert_student(:name, :email, :password_hash, :roll_no,
           :department_id, :year_of_study, :phone, @out_sid)`,
-        { name, email, password_hash, roll_no, department_id, year_of_study, phone },
+        { name, email, password_hash, roll_no, department_id, year_of_study, phone: phone || null },
       );
       const [[{ out_sid }]] = await conn.execute('SELECT @out_sid AS out_sid');
       return out_sid;
@@ -80,7 +83,10 @@ export async function createStudent(req, res, next) {
        JOIN departments d ON d.department_id = s.department_id
        WHERE s.student_id = ?`, [studentId]
     );
-    res.status(201).json({ data: student, rowCount: 1, executionTimeMs });
+    res.status(201).json({
+      data: student,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -99,7 +105,7 @@ export async function updateStudent(req, res, next) {
     const { executionTimeMs } = await timed(() =>
       conn.execute(
         'CALL sp_update_student(:student_id, :name, :email, :roll_no, :department_id, :year_of_study, :phone)',
-        { student_id: studentId, name, email, roll_no, department_id, year_of_study, phone },
+        { student_id: studentId, name, email, roll_no, department_id, year_of_study, phone: phone || null },
       )
     );
 
@@ -109,7 +115,10 @@ export async function updateStudent(req, res, next) {
        JOIN departments d ON d.department_id = s.department_id
        WHERE s.student_id = ?`, [studentId]
     );
-    res.json({ data: student, rowCount: 1, executionTimeMs });
+    res.json({
+      data: student,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -125,7 +134,10 @@ export async function deleteStudent(req, res, next) {
     const { executionTimeMs } = await timed(() =>
       conn.execute('CALL sp_delete_student(:id)', { id: req.params.id })
     );
-    res.json({ data: { deleted: true }, rowCount: 1, executionTimeMs });
+    res.json({
+      data: { deleted: true },
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {

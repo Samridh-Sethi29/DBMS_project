@@ -42,7 +42,9 @@ app.get('/health', (_req, res) =>
 );
 
 // ── 404 handler ──────────────────────────────────────────────────────────
-app.use((_req, res) => res.status(404).json({ error: 'Route not found.' }));
+app.use((_req, res) => res.status(404).json({
+  error: { code: 'NOT_FOUND', message: 'Route not found.' },
+}));
 
 // ── Central error handler ────────────────────────────────────────────────
 app.use(errorHandler);

@@ -11,7 +11,7 @@ const SALT_ROUNDS = 12;
 
 // POST /auth/register
 export async function register(req, res, next) {
-  const { name, email, password, role = 'student' } = req.body;
+  const { name, email, password, role = 'user' } = req.body;
   let conn;
   try {
     const { result: hash, executionTimeMs: hashMs } = await timed(() =>
@@ -20,7 +20,7 @@ export async function register(req, res, next) {
 
     conn = await writePool.getConnection();
 
-    const { result: rows, executionTimeMs } = await timed(async () => {
+    const { result: userId, executionTimeMs } = await timed(async () => {
       await conn.execute('SET @out_id = 0');
       await conn.execute(
         'CALL sp_user_register(:name, :email, :hash, :role, @out_id)',
@@ -30,14 +30,12 @@ export async function register(req, res, next) {
       return out_id;
     });
 
-    const userId = rows;
-
-    // If student role, caller should separately call POST /api/students with student details.
     res.status(201).json({
-      data          : { userId, name, email, role },
-      rowCount      : 1,
-      executionTimeMs: executionTimeMs + hashMs,
-      message       : 'User registered successfully.',
+      data: { userId, name, email, role },
+      meta: {
+        rowCount       : 1,
+        executionTimeMs: executionTimeMs + hashMs,
+      },
     });
   } catch (err) {
     next(err);
@@ -60,19 +58,31 @@ export async function login(req, res, next) {
 
     const user = rows?.[0];
     if (!user || !user.is_active) {
-      return res.status(401).json({ error: 'Invalid credentials or account inactive.' });
+      return res.status(401).json({
+        error: {
+          code   : 'INVALID_CREDENTIALS',
+          message: 'Invalid credentials or account inactive.',
+        },
+      });
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      return res.status(401).json({ error: 'Invalid credentials.' });
+      return res.status(401).json({
+        error: {
+          code   : 'INVALID_CREDENTIALS',
+          message: 'Invalid credentials.',
+        },
+      });
     }
 
     const token = signToken(user);
     res.json({
-      data           : { token, userId: user.user_id, name: user.name, role: user.role },
-      rowCount       : 1,
-      executionTimeMs,
+      data: { token, userId: user.user_id, name: user.name, role: user.role },
+      meta: {
+        rowCount: 1,
+        executionTimeMs,
+      },
     });
   } catch (err) {
     next(err);

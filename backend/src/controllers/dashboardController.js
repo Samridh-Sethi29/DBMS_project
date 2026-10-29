@@ -80,8 +80,10 @@ export async function dashboard(req, res, next) {
       data: Object.fromEntries(
         Object.entries(result).map(([k, v]) => [k, { value: v, message: msgs[k] }])
       ),
-      rowCount       : Object.keys(result).length,
-      executionTimeMs,
+      meta: {
+        rowCount       : Object.keys(result).length,
+        executionTimeMs,
+      },
     });
   } catch (err) {
     next(err);

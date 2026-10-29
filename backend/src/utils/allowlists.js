@@ -13,12 +13,12 @@ export const AGGREGATE_TABLES = new Set([
 export const AGGREGATE_COLUMNS = {
   events        : new Set(['event_id','max_participants','status','event_type']),
   registrations : new Set(['registration_id','event_id','student_id','status']),
-  clubs         : new Set(['club_id','status','category_id','coordinator_id']),
+  clubs         : new Set(['club_id','status','category_id','faculty_advisor_id']),
   students      : new Set(['student_id','department_id','year_of_study']),
   venues        : new Set(['venue_id','capacity']),
   attendance    : new Set(['attendance_id','status']),
   certificates  : new Set(['certificate_id']),
-  club_members  : new Set(['club_id','student_id','status']),
+  club_members  : new Set(['club_id','student_id','status','member_role']),
   users         : new Set(['user_id','role','is_active']),
 };
 
@@ -32,6 +32,7 @@ export const FILTER_OPS = new Set(['=', '<>', '<', '>', '<=', '>=', 'LIKE', 'BET
 export const EVENT_FILTER_COLS = new Set([
   'event_id','club_id','venue_id','event_type','status',
   'start_datetime','end_datetime','registration_deadline','max_participants',
+  'is_tentative','signup_mode',
 ]);
 
 // ── JOIN types ────────────────────────────────────────────────────────────
@@ -40,19 +41,19 @@ export const JOIN_TYPES = new Set(['INNER', 'LEFT', 'RIGHT', 'FULL']);
 // ── FK join map: allowed (left, right) table pairs and how they join.
 // Value: { leftCol, rightCol }
 export const JOIN_MAP = {
-  'events,clubs'          : { leftCol: 'club_id',         rightCol: 'club_id'         },
-  'events,venues'         : { leftCol: 'venue_id',        rightCol: 'venue_id'         },
-  'events,users'          : { leftCol: 'created_by',      rightCol: 'user_id'          },
-  'registrations,events'  : { leftCol: 'event_id',        rightCol: 'event_id'         },
-  'registrations,students': { leftCol: 'student_id',      rightCol: 'student_id'       },
-  'students,departments'  : { leftCol: 'department_id',   rightCol: 'department_id'    },
-  'students,users'        : { leftCol: 'student_id',      rightCol: 'user_id'          },
-  'clubs,club_categories' : { leftCol: 'category_id',     rightCol: 'category_id'      },
-  'clubs,users'           : { leftCol: 'coordinator_id',  rightCol: 'user_id'          },
-  'attendance,registrations':{ leftCol:'registration_id', rightCol:'registration_id'   },
-  'certificates,registrations':{ leftCol:'registration_id',rightCol:'registration_id' },
-  'club_members,clubs'    : { leftCol: 'club_id',         rightCol: 'club_id'         },
-  'club_members,students' : { leftCol: 'student_id',      rightCol: 'student_id'      },
+  'events,clubs'          : { leftCol: 'club_id',            rightCol: 'club_id'         },
+  'events,venues'         : { leftCol: 'venue_id',           rightCol: 'venue_id'        },
+  'events,users'          : { leftCol: 'created_by',         rightCol: 'user_id'         },
+  'registrations,events'  : { leftCol: 'event_id',           rightCol: 'event_id'        },
+  'registrations,students': { leftCol: 'student_id',         rightCol: 'student_id'      },
+  'students,departments'  : { leftCol: 'department_id',      rightCol: 'department_id'   },
+  'students,users'        : { leftCol: 'student_id',         rightCol: 'user_id'         },
+  'clubs,club_categories' : { leftCol: 'category_id',        rightCol: 'category_id'     },
+  'clubs,users'           : { leftCol: 'faculty_advisor_id', rightCol: 'user_id'         },
+  'attendance,registrations':{ leftCol:'registration_id',    rightCol:'registration_id'  },
+  'certificates,registrations':{ leftCol:'registration_id',  rightCol:'registration_id'  },
+  'club_members,clubs'    : { leftCol: 'club_id',            rightCol: 'club_id'         },
+  'club_members,students' : { leftCol: 'student_id',         rightCol: 'student_id'      },
 };
 
 // ── Subquery options (GET /api/subquery) ──────────────────────────────────

@@ -5,7 +5,7 @@ import { readPool, writePool, getWriteConn } from '../config/db.js';
 import { timed } from '../middleware/timing.js';
 import { parsePagination, paginated } from '../utils/pagination.js';
 import { sendXml } from '../utils/xml.js';
-import { badRequest } from '../middleware/errorHandler.js';
+import { badRequest, notFound } from '../middleware/errorHandler.js';
 import { EVENT_FILTER_COLS, FILTER_OPS } from '../utils/allowlists.js';
 
 // ── Q1: GET /api/events ──────────────────────────────────────────────────
@@ -48,9 +48,11 @@ export async function createEvent(req, res, next) {
   let conn;
   try {
     const {
-      club_id, venue_id, title, description, event_type,
-      start_datetime, end_datetime, registration_deadline,
-      max_participants,
+      club_id, venue_id, title, description = null, event_type,
+      start_datetime, end_datetime,
+      is_tentative = false, poster_url = null,
+      signup_mode = 'none', external_signup_url = null,
+      registration_deadline = null, max_participants = null,
     } = req.body;
 
     conn = await getWriteConn();
@@ -58,11 +60,13 @@ export async function createEvent(req, res, next) {
       await conn.execute('SET @out_id = 0');
       await conn.execute(
         `CALL sp_insert_event(:club_id, :venue_id, :title, :description, :event_type,
-          :start_datetime, :end_datetime, :registration_deadline, :max_participants,
-          :created_by, @out_id)`,
+          :start_datetime, :end_datetime, :is_tentative, :poster_url,
+          :signup_mode, :external_signup_url, :registration_deadline,
+          :max_participants, :created_by, @out_id)`,
         {
           club_id, venue_id, title, description, event_type,
-          start_datetime, end_datetime, registration_deadline,
+          start_datetime, end_datetime, is_tentative, poster_url,
+          signup_mode, external_signup_url, registration_deadline,
           max_participants, created_by: req.user.userId,
         },
       );
@@ -71,10 +75,17 @@ export async function createEvent(req, res, next) {
     });
 
     const [[newEvent]] = await readPool.execute(
-      'SELECT * FROM events WHERE event_id = ?', [eventId]
+      `SELECT e.*, c.name AS club_name, v.name AS venue_name
+       FROM events e
+       JOIN clubs c ON c.club_id = e.club_id
+       JOIN venues v ON v.venue_id = e.venue_id
+       WHERE e.event_id = ?`, [eventId]
     );
 
-    res.status(201).json({ data: newEvent, rowCount: 1, executionTimeMs });
+    res.status(201).json({
+      data: newEvent,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -99,7 +110,7 @@ export async function filterEvents(req, res, next) {
     }
 
     const safeOp  = op.toUpperCase();
-    const safeCol = `e.\`${field}\``;  // safe: from allowlist
+    const safeCol = `e.\`${field}\``;
 
     let whereSql, params;
     if (safeOp === 'BETWEEN') {
@@ -147,20 +158,37 @@ export async function updateEvent(req, res, next) {
   let conn;
   try {
     const eventId = parseInt(req.params.id, 10);
+    const [[existing]] = await readPool.execute('SELECT * FROM events WHERE event_id = ?', [eventId]);
+    if (!existing) return next(notFound('Event not found.'));
+
     const {
-      venue_id, title, description, event_type,
-      start_datetime, end_datetime, registration_deadline,
-      max_participants, status,
+      venue_id              = existing.venue_id,
+      title                 = existing.title,
+      description           = existing.description,
+      event_type            = existing.event_type,
+      start_datetime        = existing.start_datetime,
+      end_datetime          = existing.end_datetime,
+      is_tentative          = existing.is_tentative,
+      poster_url            = existing.poster_url,
+      recap_text            = existing.recap_text,
+      signup_mode           = existing.signup_mode,
+      external_signup_url   = existing.external_signup_url,
+      registration_deadline = existing.registration_deadline,
+      max_participants      = existing.max_participants,
+      status                = existing.status,
     } = req.body;
 
     conn = await getWriteConn();
     const { executionTimeMs } = await timed(() =>
       conn.execute(
         `CALL sp_update_event(:event_id, :venue_id, :title, :description, :event_type,
-          :start_datetime, :end_datetime, :registration_deadline, :max_participants, :status)`,
+          :start_datetime, :end_datetime, :is_tentative, :poster_url, :recap_text,
+          :signup_mode, :external_signup_url, :registration_deadline,
+          :max_participants, :status)`,
         {
           event_id: eventId, venue_id, title, description, event_type,
-          start_datetime, end_datetime, registration_deadline,
+          start_datetime, end_datetime, is_tentative, poster_url, recap_text,
+          signup_mode, external_signup_url, registration_deadline,
           max_participants, status,
         },
       )
@@ -174,8 +202,10 @@ export async function updateEvent(req, res, next) {
        WHERE e.event_id = ?`, [eventId]
     );
 
-    if (!updated) return next(badRequest('Event not found after update.'));
-    res.json({ data: updated, rowCount: 1, executionTimeMs });
+    res.json({
+      data: updated,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -191,21 +221,23 @@ export async function registerForEvent(req, res, next) {
     const studentId = req.user.userId;
 
     conn = await getWriteConn();
-    const { result: regId, executionTimeMs } = await timed(async () => {
-      await conn.execute('SET @out_reg = 0');
+    const { executionTimeMs } = await timed(async () => {
+      // Calls schema.sql procedure sp_register_student(IN p_event_id INT, IN p_student_id INT)
       await conn.execute(
-        'CALL sp_register_student(:event_id, :student_id, @out_reg)',
-        { event_id: eventId, student_id: studentId },
+        'CALL sp_register_student(?, ?)',
+        [eventId, studentId],
       );
-      const [[{ out_reg }]] = await conn.execute('SELECT @out_reg AS out_reg');
-      return out_reg;
     });
 
     const [[reg]] = await readPool.execute(
-      'SELECT * FROM registrations WHERE registration_id = ?', [regId]
+      'SELECT * FROM registrations WHERE event_id = ? AND student_id = ?',
+      [eventId, studentId]
     );
 
-    res.status(201).json({ data: reg, rowCount: 1, executionTimeMs });
+    res.status(201).json({
+      data: reg,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -236,7 +268,10 @@ export async function cancelRegistration(req, res, next) {
       return reg;
     });
 
-    res.json({ data: { cancelled: true }, rowCount: 1, executionTimeMs });
+    res.json({
+      data: { cancelled: true },
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     if (conn) try { await conn.rollback(); } catch {}
     next(err);
@@ -251,10 +286,6 @@ export async function markAttendance(req, res, next) {
   try {
     const eventId = parseInt(req.params.id, 10);
     const { student_id, status = 'present' } = req.body;
-
-    if (!['present', 'absent'].includes(status)) {
-      return next(badRequest('status must be present or absent.'));
-    }
 
     conn = await getWriteConn();
     const { result, executionTimeMs } = await timed(async () => {
@@ -291,7 +322,10 @@ export async function markAttendance(req, res, next) {
     const [[att]] = await readPool.execute(
       'SELECT * FROM attendance WHERE attendance_id = ?', [result]
     );
-    res.status(201).json({ data: att, rowCount: 1, executionTimeMs });
+    res.status(201).json({
+      data: att,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     if (conn) try { await conn.rollback(); } catch {}
     next(err);
@@ -338,7 +372,10 @@ export async function issueCertificate(req, res, next) {
     const [[cert]] = await readPool.execute(
       'SELECT * FROM certificates WHERE certificate_id = ?', [result]
     );
-    res.status(201).json({ data: cert, rowCount: 1, executionTimeMs });
+    res.status(201).json({
+      data: cert,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     if (conn) try { await conn.rollback(); } catch {}
     next(err);

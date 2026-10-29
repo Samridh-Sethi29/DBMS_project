@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # College Club and Event Management System
 
 Full-stack backend: **Node.js 20 + Express 4 + MySQL 8** (ES modules, mysql2/promise).
@@ -462,6 +461,3 @@ curl http://localhost:3000/health
 ---
 
 **Assumption:** The `club_event_db` database already exists (CREATE DATABASE run manually or via mysql client before sourcing schema.sql); password-hashing in the `/auth/register` endpoint uses bcrypt with salt rounds = 12 in Node before calling `sp_user_register`.
-=======
-# DBMS_project
->>>>>>> 53190481e5470551027bb4bbf250a2d0e76fa648

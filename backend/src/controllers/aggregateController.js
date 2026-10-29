@@ -38,9 +38,11 @@ export async function aggregate(req, res, next) {
     });
 
     const payload = {
-      data           : { table, column, fn: safeFn, result: result.result },
-      rowCount       : 1,
-      executionTimeMs,
+      data: { table, column, fn: safeFn, result: result.result },
+      meta: {
+        rowCount: 1,
+        executionTimeMs,
+      },
     };
 
     if (req.query.format === 'xml') return sendXml(res, payload);

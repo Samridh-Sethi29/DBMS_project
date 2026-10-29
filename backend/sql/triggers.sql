@@ -1,13 +1,8 @@
 -- =============================================================================
 -- triggers.sql  –  All triggers for club_event_db (MySQL 8)
 -- Run after schema.sql.  Re-runnable (DROP IF EXISTS before each CREATE).
--- =============================================================================
--- NOTE ON MYSQL LIMITATIONS:
---   MySQL does not support statement-level triggers (Oracle-style AFTER STATEMENT).
---   All triggers here are row-level (FOR EACH ROW implied in MySQL).
---   The audit-log triggers below fire once per modified row; for bulk DML this
---   produces one log entry per row, which is functionally equivalent to a
---   statement-level audit.  This limitation is noted per the assignment spec.
+-- Note: trg_events_no_overlap_insert/update and trg_cm_single_chair_insert/update
+-- are defined in schema.sql and NOT redefined here.
 -- =============================================================================
 USE club_event_db;
 
@@ -15,8 +10,8 @@ DELIMITER $$
 
 -- ===========================================================================
 -- (a) BEFORE INSERT/UPDATE on events
---     Constraint 1: end_datetime > start_datetime
---     Constraint 2: max_participants <= venue.capacity
+--     Constraint 1: end_datetime > start_datetime (also checked by chk_event_time)
+--     Constraint 2: max_participants <= venue.capacity (when max_participants is not null)
 -- ===========================================================================
 
 DROP TRIGGER IF EXISTS trg_events_before_insert$$
@@ -33,10 +28,12 @@ BEGIN
   END IF;
 
   -- Constraint 2: participant cap
-  SELECT capacity INTO v_capacity FROM venues WHERE venue_id = NEW.venue_id;
-  IF NEW.max_participants > v_capacity THEN
-    SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = 'events: max_participants exceeds venue capacity.';
+  IF NEW.max_participants IS NOT NULL THEN
+    SELECT capacity INTO v_capacity FROM venues WHERE venue_id = NEW.venue_id;
+    IF v_capacity IS NOT NULL AND NEW.max_participants > v_capacity THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'events: max_participants exceeds venue capacity.';
+    END IF;
   END IF;
 END$$
 
@@ -52,54 +49,12 @@ BEGIN
       SET MESSAGE_TEXT = 'events: end_datetime must be after start_datetime.';
   END IF;
 
-  SELECT capacity INTO v_capacity FROM venues WHERE venue_id = NEW.venue_id;
-  IF NEW.max_participants > v_capacity THEN
-    SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = 'events: max_participants exceeds venue capacity.';
-  END IF;
-END$$
-
--- Venue time-overlap check (pre-existing requirement):
--- Prevent double-booking the same venue in overlapping windows.
-DROP TRIGGER IF EXISTS trg_events_venue_overlap_insert$$
-CREATE TRIGGER trg_events_venue_overlap_insert
-BEFORE INSERT ON events
-FOR EACH ROW
-FOLLOWS trg_events_before_insert
-BEGIN
-  DECLARE v_conflict INT;
-  SELECT COUNT(*) INTO v_conflict
-  FROM   events
-  WHERE  venue_id      = NEW.venue_id
-    AND  status        NOT IN ('cancelled')
-    AND  event_id      <> NEW.event_id
-    AND  start_datetime < NEW.end_datetime
-    AND  end_datetime   > NEW.start_datetime;
-
-  IF v_conflict > 0 THEN
-    SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = 'Venue is already booked for an overlapping time window.';
-  END IF;
-END$$
-
-DROP TRIGGER IF EXISTS trg_events_venue_overlap_update$$
-CREATE TRIGGER trg_events_venue_overlap_update
-BEFORE UPDATE ON events
-FOR EACH ROW
-FOLLOWS trg_events_before_update
-BEGIN
-  DECLARE v_conflict INT;
-  SELECT COUNT(*) INTO v_conflict
-  FROM   events
-  WHERE  venue_id      = NEW.venue_id
-    AND  status        NOT IN ('cancelled')
-    AND  event_id      <> NEW.event_id
-    AND  start_datetime < NEW.end_datetime
-    AND  end_datetime   > NEW.start_datetime;
-
-  IF v_conflict > 0 THEN
-    SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = 'Venue is already booked for an overlapping time window.';
+  IF NEW.max_participants IS NOT NULL THEN
+    SELECT capacity INTO v_capacity FROM venues WHERE venue_id = NEW.venue_id;
+    IF v_capacity IS NOT NULL AND NEW.max_participants > v_capacity THEN
+      SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'events: max_participants exceeds venue capacity.';
+    END IF;
   END IF;
 END$$
 
@@ -155,6 +110,7 @@ BEGIN
     'event_id', NEW.event_id, 'club_id', NEW.club_id, 'venue_id', NEW.venue_id,
     'title', NEW.title, 'event_type', NEW.event_type,
     'start_datetime', NEW.start_datetime, 'end_datetime', NEW.end_datetime,
+    'is_tentative', NEW.is_tentative, 'signup_mode', NEW.signup_mode,
     'status', NEW.status, 'max_participants', NEW.max_participants
   ));
 END$$
@@ -170,13 +126,13 @@ BEGIN
       'event_id', OLD.event_id, 'title', OLD.title, 'event_type', OLD.event_type,
       'status', OLD.status, 'start_datetime', OLD.start_datetime,
       'end_datetime', OLD.end_datetime, 'max_participants', OLD.max_participants,
-      'venue_id', OLD.venue_id
+      'venue_id', OLD.venue_id, 'signup_mode', OLD.signup_mode
     ),
     JSON_OBJECT(
       'event_id', NEW.event_id, 'title', NEW.title, 'event_type', NEW.event_type,
       'status', NEW.status, 'start_datetime', NEW.start_datetime,
       'end_datetime', NEW.end_datetime, 'max_participants', NEW.max_participants,
-      'venue_id', NEW.venue_id
+      'venue_id', NEW.venue_id, 'signup_mode', NEW.signup_mode
     ));
 END$$
 
@@ -237,7 +193,7 @@ BEGIN
   INSERT INTO application_audit_log (table_name, action, record_id, old_data, new_data)
   VALUES ('clubs', 'INSERT', NEW.club_id, NULL, JSON_OBJECT(
     'club_id', NEW.club_id, 'name', NEW.name, 'status', NEW.status,
-    'category_id', NEW.category_id, 'coordinator_id', NEW.coordinator_id
+    'category_id', NEW.category_id, 'faculty_advisor_id', NEW.faculty_advisor_id
   ));
 END$$
 
@@ -248,8 +204,8 @@ FOR EACH ROW
 BEGIN
   INSERT INTO application_audit_log (table_name, action, record_id, old_data, new_data)
   VALUES ('clubs', 'UPDATE', NEW.club_id,
-    JSON_OBJECT('club_id', OLD.club_id, 'name', OLD.name, 'status', OLD.status),
-    JSON_OBJECT('club_id', NEW.club_id, 'name', NEW.name, 'status', NEW.status)
+    JSON_OBJECT('club_id', OLD.club_id, 'name', OLD.name, 'status', OLD.status, 'faculty_advisor_id', OLD.faculty_advisor_id),
+    JSON_OBJECT('club_id', NEW.club_id, 'name', NEW.name, 'status', NEW.status, 'faculty_advisor_id', NEW.faculty_advisor_id)
   );
 END$$
 
@@ -267,14 +223,12 @@ END$$
 -- ===========================================================================
 -- (d) BEFORE INSERT/UPDATE/DELETE on registrations
 --     Block changes on Mondays between 14:00 and 16:00
---     PRECEDES the audit triggers so the block fires before any audit write.
 -- ===========================================================================
 
 DROP TRIGGER IF EXISTS trg_registrations_block_monday_insert$$
 CREATE TRIGGER trg_registrations_block_monday_insert
 BEFORE INSERT ON registrations
 FOR EACH ROW
-PRECEDES trg_registrations_audit_insert
 BEGIN
   IF DAYOFWEEK(NOW()) = 2                      -- 2 = Monday in MySQL
      AND TIME(NOW()) BETWEEN '14:00:00' AND '16:00:00' THEN
@@ -287,7 +241,6 @@ DROP TRIGGER IF EXISTS trg_registrations_block_monday_update$$
 CREATE TRIGGER trg_registrations_block_monday_update
 BEFORE UPDATE ON registrations
 FOR EACH ROW
-PRECEDES trg_registrations_audit_update
 BEGIN
   IF DAYOFWEEK(NOW()) = 2
      AND TIME(NOW()) BETWEEN '14:00:00' AND '16:00:00' THEN
@@ -300,7 +253,6 @@ DROP TRIGGER IF EXISTS trg_registrations_block_monday_delete$$
 CREATE TRIGGER trg_registrations_block_monday_delete
 BEFORE DELETE ON registrations
 FOR EACH ROW
-PRECEDES trg_registrations_audit_delete
 BEGIN
   IF DAYOFWEEK(NOW()) = 2
      AND TIME(NOW()) BETWEEN '14:00:00' AND '16:00:00' THEN

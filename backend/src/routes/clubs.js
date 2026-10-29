@@ -1,7 +1,7 @@
 // src/routes/clubs.js
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireClubRank } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   listClubs, getClub, createClub, updateClub, deleteClub,
@@ -9,21 +9,29 @@ import {
 
 const router = Router();
 
+const httpUrl = z.string().url().refine(
+  u => u.startsWith('http://') || u.startsWith('https://'),
+  { message: 'URL must start with http:// or https://' },
+);
+
 const clubSchema = z.object({
-  name          : z.string().min(2).max(150),
-  description   : z.string().optional(),
-  category_id   : z.number().int().positive(),
-  coordinator_id: z.number().int().positive(),
+  name              : z.string().min(2).max(100),
+  tagline           : z.string().max(160).optional().nullable(),
+  description       : z.string().optional().nullable(),
+  logo_url          : z.string().max(255).optional().nullable(),
+  website_url       : httpUrl.optional().nullable(),
+  category_id       : z.number().int().positive(),
+  faculty_advisor_id: z.number().int().positive().optional().nullable(),
 });
 
 const updateClubSchema = clubSchema.partial().extend({
   status: z.enum(['active','inactive']).optional(),
 });
 
-router.get('/',    listClubs);
-router.get('/:id', getClub);
-router.post('/',   requireAuth, requireRole('admin'), validate(clubSchema), createClub);
-router.put('/:id', requireAuth, requireRole('admin','coordinator'), validate(updateClubSchema), updateClub);
+router.get('/',       listClubs);
+router.get('/:id',    getClub);
+router.post('/',      requireAuth, requireRole('admin'), validate(clubSchema), createClub);
+router.put('/:id',    requireAuth, requireClubRank(3, req => req.params.id), validate(updateClubSchema), updateClub);
 router.delete('/:id', requireAuth, requireRole('admin'), deleteClub);
 
 export default router;

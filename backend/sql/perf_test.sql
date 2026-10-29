@@ -45,34 +45,34 @@ INSERT IGNORE INTO users (user_id, name, email, password_hash, role) VALUES
    '$2b$12$placeholder_admin_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxx', 'admin');
 
 -- ---------------------------------------------------------------------------
--- SEED: Coordinator users (20)
+-- SEED: Advisor users (20)
 -- ---------------------------------------------------------------------------
 INSERT IGNORE INTO users (user_id, name, email, password_hash, role) VALUES
-  (2,'Coord A','coord.a@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (3,'Coord B','coord.b@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (4,'Coord C','coord.c@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (5,'Coord D','coord.d@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (6,'Coord E','coord.e@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (7,'Coord F','coord.f@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (8,'Coord G','coord.g@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (9,'Coord H','coord.h@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (10,'Coord I','coord.i@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (11,'Coord J','coord.j@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (12,'Coord K','coord.k@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (13,'Coord L','coord.l@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (14,'Coord M','coord.m@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (15,'Coord N','coord.n@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (16,'Coord O','coord.o@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (17,'Coord P','coord.p@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (18,'Coord Q','coord.q@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (19,'Coord R','coord.r@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (20,'Coord S','coord.s@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator'),
-  (21,'Coord T','coord.t@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','coordinator');
+  (2,'Advisor A','advisor.a@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (3,'Advisor B','advisor.b@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (4,'Advisor C','advisor.c@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (5,'Advisor D','advisor.d@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (6,'Advisor E','advisor.e@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (7,'Advisor F','advisor.f@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (8,'Advisor G','advisor.g@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (9,'Advisor H','advisor.h@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (10,'Advisor I','advisor.i@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (11,'Advisor J','advisor.j@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (12,'Advisor K','advisor.k@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (13,'Advisor L','advisor.l@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (14,'Advisor M','advisor.m@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (15,'Advisor N','advisor.n@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (16,'Advisor O','advisor.o@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (17,'Advisor P','advisor.p@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (18,'Advisor Q','advisor.q@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (19,'Advisor R','advisor.r@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (20,'Advisor S','advisor.s@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user'),
+  (21,'Advisor T','advisor.t@college.edu','$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx','user');
 
 -- ---------------------------------------------------------------------------
 -- SEED: Clubs (10)
 -- ---------------------------------------------------------------------------
-INSERT IGNORE INTO clubs (club_id, name, description, category_id, coordinator_id, status) VALUES
+INSERT IGNORE INTO clubs (club_id, name, description, category_id, faculty_advisor_id, status) VALUES
   (1,'ACM Student Chapter','Computing & algorithms',1,2,'active'),
   (2,'Robotics Club','Build & program robots',1,3,'active'),
   (3,'Cultural Society','Arts & performances',2,4,'active'),
@@ -102,7 +102,7 @@ SELECT
   CONCAT('Student ', n)                                        AS name,
   CONCAT('student', n, '@college.edu')                         AS email,
   '$2b$12$placeholder_hash_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'     AS password_hash,
-  'student'                                                    AS role
+  'user'                                                       AS role
 FROM seq
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
@@ -128,7 +128,7 @@ ON DUPLICATE KEY UPDATE roll_no = VALUES(roll_no);
 INSERT INTO events
   (club_id, venue_id, title, description, event_type,
    start_datetime, end_datetime, registration_deadline,
-   max_participants, status, created_by)
+   max_participants, signup_mode, is_tentative, status, created_by)
 WITH RECURSIVE seq(n) AS (
   SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 200
 )
@@ -142,6 +142,8 @@ SELECT
   DATE_ADD('2025-01-01 11:00:00', INTERVAL (n * 25) HOUR)       AS end_datetime,
   DATE_ADD('2024-12-31 23:59:00', INTERVAL (n * 25) HOUR)       AS registration_deadline,
   50 + (n MOD 100)                                               AS max_participants,
+  'internal'                                                     AS signup_mode,
+  FALSE                                                          AS is_tentative,
   ELT((n MOD 4) + 1,'scheduled','ongoing','completed','cancelled') AS status,
   1                                                              AS created_by
 FROM seq;

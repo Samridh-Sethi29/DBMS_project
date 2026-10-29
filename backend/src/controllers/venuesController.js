@@ -4,7 +4,7 @@
 import { readPool, writePool } from '../config/db.js';
 import { timed } from '../middleware/timing.js';
 import { parsePagination, paginated } from '../utils/pagination.js';
-import { badRequest } from '../middleware/errorHandler.js';
+import { notFound } from '../middleware/errorHandler.js';
 
 export async function listVenues(req, res, next) {
   try {
@@ -29,8 +29,11 @@ export async function getVenue(req, res, next) {
       readPool.execute('SELECT * FROM venues WHERE venue_id = ?', [req.params.id])
     );
     const [rows] = result;
-    if (!rows.length) return next(badRequest('Venue not found.'));
-    res.json({ data: rows[0], rowCount: 1, executionTimeMs });
+    if (!rows.length) return next(notFound('Venue not found.'));
+    res.json({
+      data: rows[0],
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   }
@@ -39,7 +42,7 @@ export async function getVenue(req, res, next) {
 export async function createVenue(req, res, next) {
   let conn;
   try {
-    const { name, location, capacity } = req.body;
+    const { name, location = null, capacity } = req.body;
     conn = await writePool.getConnection();
     const { result: venueId, executionTimeMs } = await timed(async () => {
       await conn.execute('SET @out_vid = 0');
@@ -51,7 +54,10 @@ export async function createVenue(req, res, next) {
       return out_vid;
     });
     const [[venue]] = await readPool.execute('SELECT * FROM venues WHERE venue_id = ?', [venueId]);
-    res.status(201).json({ data: venue, rowCount: 1, executionTimeMs });
+    res.status(201).json({
+      data: venue,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -63,7 +69,7 @@ export async function updateVenue(req, res, next) {
   let conn;
   try {
     const venueId = parseInt(req.params.id, 10);
-    const { name, location, capacity } = req.body;
+    const { name, location = null, capacity } = req.body;
     conn = await writePool.getConnection();
     const { executionTimeMs } = await timed(() =>
       conn.execute(
@@ -72,7 +78,10 @@ export async function updateVenue(req, res, next) {
       )
     );
     const [[venue]] = await readPool.execute('SELECT * FROM venues WHERE venue_id = ?', [venueId]);
-    res.json({ data: venue, rowCount: 1, executionTimeMs });
+    res.json({
+      data: venue,
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {
@@ -87,7 +96,10 @@ export async function deleteVenue(req, res, next) {
     const { executionTimeMs } = await timed(() =>
       conn.execute('CALL sp_delete_venue(:id)', { id: req.params.id })
     );
-    res.json({ data: { deleted: true }, rowCount: 1, executionTimeMs });
+    res.json({
+      data: { deleted: true },
+      meta: { rowCount: 1, executionTimeMs },
+    });
   } catch (err) {
     next(err);
   } finally {

@@ -9,14 +9,26 @@ import {
 
 const router = Router();
 
+function requireSelfOrAdmin(req, res, next) {
+  if (req.user?.role === 'admin' || req.user?.userId === parseInt(req.params.id, 10)) {
+    return next();
+  }
+  return res.status(403).json({
+    error: {
+      code   : 'FORBIDDEN',
+      message: 'Access denied. You may only edit your own student record.',
+    },
+  });
+}
+
 const studentSchema = z.object({
-  name         : z.string().min(2).max(150),
-  email        : z.string().email(),
-  password_hash: z.string().min(8),   // caller must pre-hash or pass raw (hashed in register flow)
-  roll_no      : z.string().min(2).max(20),
+  name         : z.string().min(2).max(100),
+  email        : z.string().email().max(120),
+  password_hash: z.string().min(8),
+  roll_no      : z.string().min(2).max(30),
   department_id: z.number().int().positive(),
   year_of_study: z.number().int().min(1).max(6),
-  phone        : z.string().max(20).optional(),
+  phone        : z.string().max(15).optional(),
 });
 
 const updateStudentSchema = studentSchema.partial().omit({ password_hash: true });
@@ -24,7 +36,7 @@ const updateStudentSchema = studentSchema.partial().omit({ password_hash: true }
 router.get('/',    requireAuth, listStudents);
 router.get('/:id', requireAuth, getStudent);
 router.post('/',   requireAuth, requireRole('admin'), validate(studentSchema), createStudent);
-router.put('/:id', requireAuth, requireRole('admin','student'), validate(updateStudentSchema), updateStudent);
+router.put('/:id', requireAuth, requireSelfOrAdmin, validate(updateStudentSchema), updateStudent);
 router.delete('/:id', requireAuth, requireRole('admin'), deleteStudent);
 
 export default router;

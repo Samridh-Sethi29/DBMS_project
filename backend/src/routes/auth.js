@@ -7,10 +7,10 @@ import { register, login } from '../controllers/authController.js';
 const router = Router();
 
 const registerSchema = z.object({
-  name    : z.string().min(2).max(150),
-  email   : z.string().email(),
+  name    : z.string().min(2).max(100),
+  email   : z.string().email().max(120),
   password: z.string().min(8),
-  role    : z.enum(['student','coordinator','admin']).optional().default('student'),
+  role    : z.enum(['user','admin']).optional().default('user'),
 });
 
 const loginSchema = z.object({
