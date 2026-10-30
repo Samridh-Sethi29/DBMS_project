@@ -9,18 +9,38 @@ export const AGGREGATE_TABLES = new Set([
   'attendance', 'certificates', 'club_members', 'users',
 ]);
 
-// ── Columns allowed per table for aggregation ─────────────────────────────
-export const AGGREGATE_COLUMNS = {
-  events        : new Set(['event_id','max_participants','status','event_type']),
-  registrations : new Set(['registration_id','event_id','student_id','status']),
-  clubs         : new Set(['club_id','status','category_id','faculty_advisor_id']),
-  students      : new Set(['student_id','department_id','year_of_study']),
-  venues        : new Set(['venue_id','capacity']),
-  attendance    : new Set(['attendance_id','status']),
-  certificates  : new Set(['certificate_id']),
-  club_members  : new Set(['club_id','student_id','status','member_role']),
-  users         : new Set(['user_id','role','is_active']),
+// Explicit fields exposed by the dynamic join and aggregate endpoints.
+// Password hashes and event creator IDs are deliberately excluded.
+export const SELECTABLE_COLUMNS = {
+  events: [
+    'event_id', 'club_id', 'venue_id', 'title', 'description', 'event_type',
+    'start_datetime', 'end_datetime', 'is_tentative', 'poster_url', 'recap_text',
+    'signup_mode', 'external_signup_url', 'registration_deadline',
+    'max_participants', 'status', 'created_at', 'updated_at',
+  ],
+  registrations: ['registration_id', 'event_id', 'student_id', 'status', 'registered_at'],
+  clubs: [
+    'club_id', 'name', 'tagline', 'description', 'logo_url', 'website_url',
+    'category_id', 'faculty_advisor_id', 'status', 'created_at', 'updated_at', 'updated_by',
+  ],
+  students: ['student_id', 'roll_no', 'department_id', 'year_of_study', 'phone'],
+  venues: ['venue_id', 'name', 'location', 'capacity'],
+  attendance: ['attendance_id', 'registration_id', 'status', 'marked_by', 'marked_at'],
+  certificates: [
+    'certificate_id', 'registration_id', 'certificate_code', 'certificate_type', 'issued_at',
+  ],
+  club_members: [
+    'club_id', 'student_id', 'member_role', 'position_title', 'display_order',
+    'status', 'granted_by', 'role_granted_at', 'joined_at',
+  ],
+  users: ['user_id', 'name', 'email', 'role', 'profile_photo_url', 'is_active', 'created_at'],
+  departments: ['department_id', 'name'],
+  club_categories: ['category_id', 'name'],
 };
+
+export const AGGREGATE_COLUMNS = Object.fromEntries(
+  [...AGGREGATE_TABLES].map(table => [table, new Set(SELECTABLE_COLUMNS[table])]),
+);
 
 // ── Aggregate functions ───────────────────────────────────────────────────
 export const AGGREGATE_FNS = new Set(['COUNT', 'SUM', 'AVG', 'MIN', 'MAX']);

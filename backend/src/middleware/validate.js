@@ -3,6 +3,7 @@
 // Returns { error: { code, message, fields } } on validation failure.
 
 import { ZodError } from 'zod';
+import { zodErrors } from '../utils/zodErrors.js';
 
 /**
  * validate(schema, source = 'body') – validates req[source] against a Zod schema.
@@ -19,7 +20,7 @@ export function validate(schema, source = 'body') {
           error: {
             code   : 'VALIDATION_ERROR',
             message: 'Validation failed.',
-            fields : err.errors.map(e => ({ path: e.path.join('.'), message: e.message })),
+            fields : zodErrors(err.issues),
           },
         });
       }

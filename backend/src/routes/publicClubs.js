@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { z }      from 'zod';
+import { zodErrors } from '../utils/zodErrors.js';
 import {
   listPublicClubs,
   getPublicClub,
@@ -23,7 +24,11 @@ function posIntParam(name) {
     const v = parseInt(req.params[name], 10);
     if (!Number.isFinite(v) || v <= 0 || String(v) !== req.params[name]) {
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: `${name} must be a positive integer.` },
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: `${name} must be a positive integer.`,
+          fields: zodErrors([{ path: [name], message: `${name} must be a positive integer.` }]),
+        },
       });
     }
     next();
@@ -55,7 +60,7 @@ function validateQuery(schema) {
         error: {
           code   : 'VALIDATION_ERROR',
           message: 'Invalid query parameters.',
-          fields : parsed.error.errors.map(e => ({ path: e.path.join('.'), message: e.message })),
+          fields : zodErrors(parsed.error.issues),
         },
       });
     }

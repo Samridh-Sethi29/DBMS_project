@@ -66,7 +66,10 @@ export async function studentHistory(req, res, next) {
       if (!st) return next(notFound('Student not found.'));
     }
 
-    res.json(paginated({ data: result.rows, total: result.total, page, pageSize, executionTimeMs }));
+    const data = req.user.role === 'admin'
+      ? result.rows
+      : result.rows.map(({ email, roll_no, phone, ...selfServiceData }) => selfServiceData);
+    res.json(paginated({ data, total: result.total, page, pageSize, executionTimeMs }));
   } catch (err) {
     next(err);
   }

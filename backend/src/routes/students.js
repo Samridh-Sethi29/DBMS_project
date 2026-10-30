@@ -1,25 +1,13 @@
 // src/routes/students.js
 import { Router } from 'express';
 import { z } from 'zod';
-import { requireAuth, requireRole } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireSelfOrAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   listStudents, getStudent, createStudent, updateStudent, deleteStudent,
 } from '../controllers/studentsController.js';
 
 const router = Router();
-
-function requireSelfOrAdmin(req, res, next) {
-  if (req.user?.role === 'admin' || req.user?.userId === Number(req.params.id)) {
-    return next();
-  }
-  return res.status(403).json({
-    error: {
-      code   : 'FORBIDDEN',
-      message: 'Access denied. You may only edit your own student record.',
-    },
-  });
-}
 
 const studentSchema = z.object({
   name         : z.string().min(2).max(100),
@@ -33,8 +21,8 @@ const studentSchema = z.object({
 
 const updateStudentSchema = studentSchema.partial().omit({ password_hash: true });
 
-router.get('/',    requireAuth, listStudents);
-router.get('/:id', requireAuth, getStudent);
+router.get('/',    requireAuth, requireRole('admin'), listStudents);
+router.get('/:id', requireAuth, requireSelfOrAdmin, getStudent);
 router.post('/',   requireAuth, requireRole('admin'), validate(studentSchema), createStudent);
 router.put('/:id', requireAuth, requireSelfOrAdmin, validate(updateStudentSchema), updateStudent);
 router.delete('/:id', requireAuth, requireRole('admin'), deleteStudent);

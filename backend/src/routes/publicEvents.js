@@ -11,6 +11,7 @@ import {
   getPublicEvent,
   verifyCertificate,
 } from '../controllers/publicClubsController.js';
+import { zodErrors } from '../utils/zodErrors.js';
 
 // ── Positive-integer param guard ─────────────────────────────────────────────
 function posIntParam(name) {
@@ -18,8 +19,13 @@ function posIntParam(name) {
     const raw = req.params[name];
     const v   = parseInt(raw, 10);
     if (!Number.isFinite(v) || v <= 0 || String(v) !== raw) {
+      const message = `${name} must be a positive integer.`;
       return res.status(400).json({
-        error: { code: 'VALIDATION_ERROR', message: `${name} must be a positive integer.` },
+        error: {
+          code: 'VALIDATION_ERROR',
+          message,
+          fields: zodErrors([{ path: [name], message }]),
+        },
       });
     }
     next();

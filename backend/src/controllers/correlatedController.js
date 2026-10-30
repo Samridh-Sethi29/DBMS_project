@@ -27,55 +27,66 @@ export async function correlated(req, res, next) {
       // ------------------------------------------------------------------
       if (option === 'events_above_club_avg') {
         [[{ total }]] = await readPool.execute(`
-          SELECT COUNT(*) AS total
+          WITH event_counts AS (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */
+              e.event_id, e.club_id, COUNT(r.registration_id) AS reg_count
+            FROM events e
+            LEFT JOIN registrations r ON r.event_id = e.event_id
+            GROUP BY e.event_id, e.club_id
+          ),
+          club_averages AS (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */
+              club_id, AVG(reg_count) AS avg_reg_count
+            FROM event_counts
+            WHERE reg_count > 0
+            GROUP BY club_id
+          )
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS total
           FROM events e
-          WHERE (
-            SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.event_id
-          ) > (
-            SELECT AVG(sub.cnt)
-            FROM (
-              SELECT COUNT(*) AS cnt
-              FROM   events e2
-              JOIN   registrations r2 ON r2.event_id = e2.event_id
-              WHERE  e2.club_id = e.club_id
-              GROUP BY e2.event_id
-            ) sub
+          JOIN event_counts ec ON ec.event_id = e.event_id
+          WHERE ec.reg_count > (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ ca.avg_reg_count
+            FROM club_averages ca
+            WHERE ca.club_id = e.club_id
           )
         `);
 
         [rows] = await readPool.execute(`
-          SELECT
+          WITH event_counts AS (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */
+              e.event_id, e.club_id, COUNT(r.registration_id) AS reg_count
+            FROM events e
+            LEFT JOIN registrations r ON r.event_id = e.event_id
+            GROUP BY e.event_id, e.club_id
+          ),
+          club_averages AS (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */
+              club_id, AVG(reg_count) AS avg_reg_count
+            FROM event_counts
+            WHERE reg_count > 0
+            GROUP BY club_id
+          )
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */
             e.event_id,
             e.title,
             e.event_type,
             e.start_datetime,
             c.name AS club_name,
-            (SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.event_id) AS reg_count,
+            ec.reg_count,
             (
-              SELECT AVG(sub.cnt)
-              FROM (
-                SELECT COUNT(*) AS cnt
-                FROM   events e2
-                JOIN   registrations r2 ON r2.event_id = e2.event_id
-                WHERE  e2.club_id = e.club_id
-                GROUP BY e2.event_id
-              ) sub
+              SELECT /*+ MAX_EXECUTION_TIME(8000) */ ca.avg_reg_count
+              FROM club_averages ca
+              WHERE ca.club_id = e.club_id
             ) AS club_avg_regs
           FROM  events e
+          JOIN  event_counts ec ON ec.event_id = e.event_id
           JOIN  clubs  c ON c.club_id = e.club_id
-          WHERE (
-            SELECT COUNT(*) FROM registrations r WHERE r.event_id = e.event_id
-          ) > (
-            SELECT AVG(sub.cnt)
-            FROM (
-              SELECT COUNT(*) AS cnt
-              FROM   events e2
-              JOIN   registrations r2 ON r2.event_id = e2.event_id
-              WHERE  e2.club_id = e.club_id
-              GROUP BY e2.event_id
-            ) sub
+          WHERE ec.reg_count > (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ ca.avg_reg_count
+            FROM club_averages ca
+            WHERE ca.club_id = e.club_id
           )
-          ORDER BY reg_count DESC
+          ORDER BY ec.reg_count DESC
           LIMIT ? OFFSET ?
         `, [pageSize, offset]);
       }
@@ -85,15 +96,15 @@ export async function correlated(req, res, next) {
       // ------------------------------------------------------------------
       else if (option === 'students_above_avg_events') {
         [[{ total }]] = await readPool.execute(`
-          SELECT COUNT(*) AS total
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS total
           FROM students s
           WHERE (
-            SELECT COUNT(*) FROM registrations r
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) FROM registrations r
             WHERE  r.student_id = s.student_id AND r.status = 'registered'
           ) > (
-            SELECT AVG(cnt)
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ AVG(cnt)
             FROM (
-              SELECT COUNT(*) AS cnt
+              SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS cnt
               FROM   registrations
               WHERE  status = 'registered'
               GROUP BY student_id
@@ -102,20 +113,20 @@ export async function correlated(req, res, next) {
         `);
 
         [rows] = await readPool.execute(`
-          SELECT
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */
             s.student_id,
             u.name AS student_name,
             u.email,
             s.roll_no,
             d.name AS department_name,
             (
-              SELECT COUNT(*) FROM registrations r
+              SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) FROM registrations r
               WHERE  r.student_id = s.student_id AND r.status = 'registered'
             ) AS event_count,
             (
-              SELECT AVG(cnt)
+              SELECT /*+ MAX_EXECUTION_TIME(8000) */ AVG(cnt)
               FROM (
-                SELECT COUNT(*) AS cnt
+                SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS cnt
                 FROM   registrations
                 WHERE  status = 'registered'
                 GROUP BY student_id
@@ -125,12 +136,12 @@ export async function correlated(req, res, next) {
           JOIN  users       u ON u.user_id      = s.student_id
           JOIN  departments d ON d.department_id = s.department_id
           WHERE (
-            SELECT COUNT(*) FROM registrations r
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) FROM registrations r
             WHERE  r.student_id = s.student_id AND r.status = 'registered'
           ) > (
-            SELECT AVG(cnt)
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ AVG(cnt)
             FROM (
-              SELECT COUNT(*) AS cnt
+              SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS cnt
               FROM   registrations
               WHERE  status = 'registered'
               GROUP BY student_id

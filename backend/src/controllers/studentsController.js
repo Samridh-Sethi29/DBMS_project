@@ -116,8 +116,8 @@ export async function updateStudent(req, res, next) {
        WHERE s.student_id = ?`, [studentId]
     );
     res.json({
-      data: student,
-      meta: { rowCount: 1, executionTimeMs },
+       data: student,
+       meta: { rowCount: 1, executionTimeMs },
     });
   } catch (err) {
     next(err);
