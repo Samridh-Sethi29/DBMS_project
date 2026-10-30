@@ -1,4 +1,11 @@
 import { useState, useEffect } from 'react';
+import { 
+  fetchEventsFromBackend, 
+  fetchClubsFromBackend, 
+  registerForEventBackend, 
+  cancelRegistrationBackend,
+  setAuthToken
+} from './api';
 
 export interface CampusEvent {
   id: string;
@@ -428,6 +435,19 @@ function setStored<T>(key: string, value: T): void {
 // React custom hooks for store reactivity
 export function useEvents() {
   const [events, setEvents] = useState<CampusEvent[]>(() => getStored('ch_events', DEFAULT_EVENTS));
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    fetchEventsFromBackend()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setEvents(data);
+          setStored('ch_events', data);
+          setIsLive(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const saveEvents = (newEvents: CampusEvent[]) => {
     setEvents(newEvents);
@@ -460,6 +480,19 @@ export function useEvents() {
 
 export function useClubs() {
   const [clubs, setClubs] = useState<Club[]>(() => getStored('ch_clubs', DEFAULT_CLUBS));
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    fetchClubsFromBackend()
+      .then((data) => {
+        if (data && data.length > 0) {
+          setClubs(data);
+          setStored('ch_clubs', data);
+          setIsLive(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const saveClubs = (newClubs: Club[]) => {
     setClubs(newClubs);

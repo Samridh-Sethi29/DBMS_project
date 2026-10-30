@@ -3,6 +3,7 @@
 
 import 'dotenv/config';
 import express from 'express';
+import cors from 'cors';
 import { timing } from './middleware/timing.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRoutes       from './routes/auth.js';
@@ -13,11 +14,16 @@ import publicClubsRoutes  from './routes/publicClubs.js';
 import { eventsPublicRouter, certificatesRouter } from './routes/publicEvents.js';
 import venuesRoutes     from './routes/venues.js';
 import queryRoutes      from './routes/query.js';
+import { readPool }     from './config/db.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Global middleware ────────────────────────────────────────────────────
+app.use(cors({
+  origin: true,
+  credentials: true,
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(timing);  // attach req.startHr for per-request timing
@@ -29,6 +35,25 @@ if (process.env.NODE_ENV !== 'production') {
     next();
   });
 }
+
+// ── General Lookups ──────────────────────────────────────────────────────
+app.get('/api/departments', async (_req, res, next) => {
+  try {
+    const [rows] = await readPool.execute('SELECT department_id, name FROM departments ORDER BY name');
+    res.json({ data: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+app.get('/api/categories', async (_req, res, next) => {
+  try {
+    const [rows] = await readPool.execute('SELECT category_id, name FROM club_categories ORDER BY name');
+    res.json({ data: rows });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // ── Routes ───────────────────────────────────────────────────────────────
 app.use('/auth',         authRoutes);
