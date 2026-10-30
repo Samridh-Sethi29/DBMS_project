@@ -18,7 +18,11 @@ export async function listEvents(req, res, next) {
         'SELECT COUNT(*) AS total FROM events'
       );
       const [rows] = await readPool.execute(
-        `SELECT e.*, c.name AS club_name, v.name AS venue_name
+        `SELECT e.event_id, e.club_id, e.venue_id, e.title, e.description, e.event_type,
+                e.start_datetime, e.end_datetime, e.is_tentative, e.poster_url, e.recap_text,
+                e.signup_mode, e.external_signup_url, e.registration_deadline,
+                e.max_participants, e.status, e.created_at, e.updated_at,
+                c.name AS club_name, v.name AS venue_name
          FROM events e
          JOIN clubs  c ON c.club_id  = e.club_id
          JOIN venues v ON v.venue_id = e.venue_id
@@ -133,7 +137,11 @@ export async function filterEvents(req, res, next) {
         countParams,
       );
       const [rows] = await readPool.execute(
-        `SELECT e.*, c.name AS club_name, v.name AS venue_name
+        `SELECT e.event_id, e.club_id, e.venue_id, e.title, e.description, e.event_type,
+                e.start_datetime, e.end_datetime, e.is_tentative, e.poster_url, e.recap_text,
+                e.signup_mode, e.external_signup_url, e.registration_deadline,
+                e.max_participants, e.status, e.created_at, e.updated_at,
+                c.name AS club_name, v.name AS venue_name
          FROM events e
          JOIN clubs  c ON c.club_id  = e.club_id
          JOIN venues v ON v.venue_id = e.venue_id

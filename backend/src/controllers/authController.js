@@ -49,9 +49,9 @@ export async function register(req, res, next) {
         email,
         role     : 'user',
         roll_no  : roll_no.toUpperCase(),
+        phone    : phone || null,
         department_id,
         year_of_study,
-        phone    : phone || null,
       },
       meta: {
         rowCount       : 1,
@@ -98,12 +98,57 @@ export async function login(req, res, next) {
     }
 
     const token = signToken(user);
+    const [[student]] = await readPool.execute(
+      'SELECT roll_no, phone FROM students WHERE student_id = ?',
+      [user.user_id],
+    );
     res.json({
-      data: { token, userId: user.user_id, name: user.name, role: user.role },
+      data: {
+        token,
+        userId: user.user_id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        ...(student && { roll_no: student.roll_no, phone: student.phone }),
+      },
       meta: {
         rowCount: 1,
         executionTimeMs,
       },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function me(req, res, next) {
+  try {
+    const { result: rows, executionTimeMs } = await timed(() =>
+      readPool.execute(
+        `SELECT u.user_id, u.name, u.email, u.role, s.student_id, s.roll_no, s.phone
+         FROM users u
+         LEFT JOIN students s ON s.student_id = u.user_id
+         WHERE u.user_id = ?`,
+        [req.user.userId],
+      )
+    );
+    const [users] = rows;
+    const [user] = users;
+    if (!user) {
+      return res.status(404).json({
+        error: { code: 'NOT_FOUND', message: 'User not found.' },
+      });
+    }
+
+    res.json({
+      data: {
+        userId: user.user_id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        ...(user.student_id !== null && { roll_no: user.roll_no, phone: user.phone }),
+      },
+      meta: { rowCount: 1, executionTimeMs },
     });
   } catch (err) {
     next(err);

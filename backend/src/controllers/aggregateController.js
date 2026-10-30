@@ -8,8 +8,8 @@ import { sendXml } from '../utils/xml.js';
 import { badRequest } from '../middleware/errorHandler.js';
 import {
   AGGREGATE_TABLES,
-  AGGREGATE_COLUMNS,
   AGGREGATE_FNS,
+  SELECTABLE_COLUMNS,
 } from '../utils/allowlists.js';
 
 export async function aggregate(req, res, next) {
@@ -20,9 +20,11 @@ export async function aggregate(req, res, next) {
     if (!table || !AGGREGATE_TABLES.has(table)) {
       return next(badRequest(`Invalid table. Allowed: ${[...AGGREGATE_TABLES].join(', ')}`));
     }
-    const colSet = AGGREGATE_COLUMNS[table];
-    if (!column || !colSet?.has(column)) {
-      return next(badRequest(`Invalid column for table '${table}'. Allowed: ${[...colSet].join(', ')}`));
+    const selectableColumns = SELECTABLE_COLUMNS[table];
+    if (!column || !selectableColumns?.includes(column)) {
+      return next(badRequest(
+        `Invalid column for table '${table}'. Allowed: ${[...selectableColumns].join(', ')}`
+      ));
     }
     const safeFn = (fn || '').toUpperCase();
     if (!AGGREGATE_FNS.has(safeFn)) {
@@ -30,7 +32,7 @@ export async function aggregate(req, res, next) {
     }
 
     // Safe: table/column/fn all come from allowlists
-    const sql = `SELECT ${safeFn}(\`${column}\`) AS result FROM \`${table}\``;
+    const sql = `SELECT /*+ MAX_EXECUTION_TIME(8000) */ ${safeFn}(\`${column}\`) AS result FROM \`${table}\``;
 
     const { result, executionTimeMs } = await timed(async () => {
       const [[row]] = await readPool.execute(sql);

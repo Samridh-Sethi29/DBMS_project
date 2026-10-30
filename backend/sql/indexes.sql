@@ -1,6 +1,6 @@
 -- =============================================================================
 -- indexes.sql  –  Index definitions for club_event_db (MySQL 8)
--- Run after schema.sql.  Contains three target indexes and a BEFORE/AFTER
+-- Run after schema.sql.  Contains four target indexes and a BEFORE/AFTER
 -- analysis narrative (actual EXPLAIN ANALYZE runs are in perf_test.sql).
 -- =============================================================================
 USE club_event_db;
@@ -46,7 +46,14 @@ CALL _drop_index_if_exists('registrations', 'idx_reg_student_status');
 CREATE INDEX idx_reg_student_status ON registrations (student_id, status);
 
 -- ---------------------------------------------------------------------------
--- Index 3: students(year_of_study)
+-- Index 3: registrations(event_id, status)
+-- Supports per-event correlated registration counts and status filters (Q7).
+-- ---------------------------------------------------------------------------
+CALL _drop_index_if_exists('registrations', 'idx_reg_event_status');
+CREATE INDEX idx_reg_event_status ON registrations (event_id, status);
+
+-- ---------------------------------------------------------------------------
+-- Index 4: students(year_of_study)
 -- Supports queries filtered by student year of study.
 -- (Note: department_id is already indexed by foreign key fk_students_dept).
 -- ---------------------------------------------------------------------------
@@ -57,4 +64,3 @@ DROP PROCEDURE IF EXISTS _drop_index_if_exists;
 
 -- Note: events(venue_id, start_datetime, end_datetime) is already indexed as
 -- idx_event_venue_time in schema.sql.
-

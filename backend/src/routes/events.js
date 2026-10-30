@@ -114,7 +114,7 @@ const certSchema = z.object({
 // Q1
 router.get('/',         listEvents);
 // Q4
-router.get('/filter',   filterEvents);
+router.get('/filter',   requireAuth, filterEvents);
 // Q2: Club core members (rank >= 2) or admin can create events for club_id in body
 router.post('/',        requireAuth, requireClubRank(2, req => req.body.club_id), validate(createEventSchema), createEvent);
 // Q8: Loads event from DB, takes club_id from DB row, never trusts body

@@ -51,6 +51,19 @@ export function requireRole(...roles) {
   };
 }
 
+export function requireSelfOrAdmin(req, res, next) {
+  if (req.user?.role === 'admin'
+      || Number(req.user?.userId) === Number(req.params.id)) {
+    return next();
+  }
+  return res.status(403).json({
+    error: {
+      code: 'FORBIDDEN',
+      message: 'Access denied. You may only access your own student record.',
+    },
+  });
+}
+
 /**
  * Queries fn_club_rank(club_id, user_id) from the database on a per-request basis.
  * Returns integer: 0 (none), 1 (member), 2 (core), 3 (vice chair), 4 (chair), 5 (admin)

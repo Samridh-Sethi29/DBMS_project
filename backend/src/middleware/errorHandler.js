@@ -45,6 +45,15 @@ function mapSignalError(msg) {
 }
 
 export function errorHandler(err, req, res, _next) {
+  if (err.code === 'ER_QUERY_TIMEOUT') {
+    return res.status(503).json({
+      error: {
+        code: 'QUERY_TIMEOUT',
+        message: 'The query exceeded the execution time limit.',
+      },
+    });
+  }
+
   // ── MySQL SIGNAL SQLSTATE '45000' ──────────────────────────────────────────
   if (err.sqlState === '45000') {
     const { status, code } = mapSignalError(err.message || '');
@@ -52,6 +61,7 @@ export function errorHandler(err, req, res, _next) {
       error: {
         code,
         message: err.message,
+        ...(code === 'VALIDATION_ERROR' && { fields: [] }),
       },
     });
   }
@@ -100,6 +110,7 @@ export function errorHandler(err, req, res, _next) {
       error: {
         code: err.code || defaultCodes[err.status] || 'ERROR',
         message: err.message,
+        ...((err.code || defaultCodes[err.status]) === 'VALIDATION_ERROR' && { fields: [] }),
         ...(err.fields && { fields: err.fields }),
       },
     });

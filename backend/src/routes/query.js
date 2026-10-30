@@ -8,18 +8,18 @@ import { subquery }   from '../controllers/subqueryController.js';
 import { correlated } from '../controllers/correlatedController.js';
 import { dashboard }  from '../controllers/dashboardController.js';
 import { participation, membership, studentHistory } from '../controllers/reportsController.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, requireRole, requireSelfOrAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
 // Q3
-router.get('/aggregate', aggregate);
+router.get('/aggregate', requireAuth, requireRole('admin'), aggregate);
 // Q5
-router.get('/join',      join);
+router.get('/join',      requireAuth, requireRole('admin'), join);
 // Q6
-router.get('/subquery',  requireAuth, subquery);
+router.get('/subquery',  requireAuth, requireRole('admin'), subquery);
 // Q7
-router.get('/correlated',requireAuth, correlated);
+router.get('/correlated', requireAuth, requireRole('admin'), correlated);
 
 // Dashboard
 router.get('/dashboard', requireAuth, dashboard);
@@ -27,6 +27,6 @@ router.get('/dashboard', requireAuth, dashboard);
 // Reports (views)
 router.get('/reports/participation',  requireAuth, participation);
 router.get('/reports/membership',     requireAuth, membership);
-router.get('/reports/student/:id',    requireAuth, studentHistory);
+router.get('/reports/student/:id',    requireAuth, requireSelfOrAdmin, studentHistory);
 
 export default router;

@@ -6,7 +6,13 @@ import { readPool } from '../config/db.js';
 import { timed } from '../middleware/timing.js';
 import { badRequest } from '../middleware/errorHandler.js';
 import { parsePagination, paginated } from '../utils/pagination.js';
-import { JOIN_TYPES, JOIN_MAP } from '../utils/allowlists.js';
+import { JOIN_TYPES, JOIN_MAP, SELECTABLE_COLUMNS } from '../utils/allowlists.js';
+
+function selectColumns(table, alias) {
+  return SELECTABLE_COLUMNS[table]
+    .map(column => `${alias}.\`${column}\` AS \`${table}_${column}\``)
+    .join(', ');
+}
 
 export async function join(req, res, next) {
   try {
@@ -28,16 +34,17 @@ export async function join(req, res, next) {
 
     // Safe: left/right/cols come from allowlist; joinType from allowlist set
     const { leftCol, rightCol } = pair;
+    const selectedColumns = `${selectColumns(left, 'l')}, ${selectColumns(right, 'r')}`;
 
     const { result, executionTimeMs } = await timed(async () => {
       if (joinType === 'FULL') {
         // Emulate FULL OUTER JOIN with LEFT JOIN UNION RIGHT JOIN (MySQL has no FULL OUTER JOIN)
         const sql = `
-          SELECT '${left}' AS source_left, l.*, r.*
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */ '${left}' AS source_left, ${selectedColumns}
           FROM \`${left}\` l
           LEFT JOIN \`${right}\` r ON l.\`${leftCol}\` = r.\`${rightCol}\`
           UNION
-          SELECT '${left}' AS source_left, l.*, r.*
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */ '${left}' AS source_left, ${selectedColumns}
           FROM \`${left}\` l
           RIGHT JOIN \`${right}\` r ON l.\`${leftCol}\` = r.\`${rightCol}\`
           LIMIT ? OFFSET ?
@@ -45,11 +52,11 @@ export async function join(req, res, next) {
         const [rows] = await readPool.execute(sql, [pageSize, offset]);
 
         const [[{ total }]] = await readPool.execute(`
-          SELECT COUNT(*) AS total FROM (
-            SELECT l.\`${leftCol}\`
+          SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS total FROM (
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ l.\`${leftCol}\`
             FROM \`${left}\` l LEFT JOIN \`${right}\` r ON l.\`${leftCol}\` = r.\`${rightCol}\`
             UNION
-            SELECT l.\`${leftCol}\`
+            SELECT /*+ MAX_EXECUTION_TIME(8000) */ l.\`${leftCol}\`
             FROM \`${left}\` l RIGHT JOIN \`${right}\` r ON l.\`${leftCol}\` = r.\`${rightCol}\`
           ) sub
         `);
@@ -57,7 +64,7 @@ export async function join(req, res, next) {
       }
 
       const sql = `
-        SELECT l.*, r.*
+        SELECT /*+ MAX_EXECUTION_TIME(8000) */ ${selectedColumns}
         FROM \`${left}\` l
         ${joinType} JOIN \`${right}\` r ON l.\`${leftCol}\` = r.\`${rightCol}\`
         LIMIT ? OFFSET ?
@@ -65,7 +72,7 @@ export async function join(req, res, next) {
       const [rows] = await readPool.execute(sql, [pageSize, offset]);
 
       const countSql = `
-        SELECT COUNT(*) AS total
+        SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS total
         FROM \`${left}\` l
         ${joinType} JOIN \`${right}\` r ON l.\`${leftCol}\` = r.\`${rightCol}\`
       `;

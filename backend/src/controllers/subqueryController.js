@@ -29,28 +29,28 @@ export async function subquery(req, res, next) {
         if (!club_id) throw Object.assign(new Error('club_id is required for this option.'), { status: 400 });
 
         [[{ total }]] = await readPool.execute(
-          `SELECT COUNT(DISTINCT s.student_id) AS total
+          `SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(DISTINCT s.student_id) AS total
            FROM students s
            WHERE s.student_id IN (
-             SELECT r.student_id
+             SELECT /*+ MAX_EXECUTION_TIME(8000) */ r.student_id
              FROM   registrations r
              WHERE  r.event_id IN (
-               SELECT e.event_id FROM events e WHERE e.club_id = ?
+               SELECT /*+ MAX_EXECUTION_TIME(8000) */ e.event_id FROM events e WHERE e.club_id = ?
              )
            )`,
           [club_id],
         );
 
         [rows] = await readPool.execute(
-          `SELECT s.student_id, u.name, u.email, s.roll_no, d.name AS department_name
+          `SELECT /*+ MAX_EXECUTION_TIME(8000) */ s.student_id, u.name, u.email, s.roll_no, d.name AS department_name
            FROM   students s
            JOIN   users       u ON u.user_id       = s.student_id
            JOIN   departments d ON d.department_id  = s.department_id
            WHERE  s.student_id IN (
-             SELECT r.student_id
+             SELECT /*+ MAX_EXECUTION_TIME(8000) */ r.student_id
              FROM   registrations r
              WHERE  r.event_id IN (
-               SELECT e.event_id FROM events e WHERE e.club_id = ?
+               SELECT /*+ MAX_EXECUTION_TIME(8000) */ e.event_id FROM events e WHERE e.club_id = ?
              )
            )
            LIMIT ? OFFSET ?`,
@@ -63,16 +63,16 @@ export async function subquery(req, res, next) {
       // ------------------------------------------------------------------
       else if (option === 'clubs_above_avg_membership') {
         [[{ total }]] = await readPool.execute(
-          `SELECT COUNT(*) AS total
+          `SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS total
            FROM (
-             SELECT club_id, COUNT(*) AS cnt
+             SELECT /*+ MAX_EXECUTION_TIME(8000) */ club_id, COUNT(*) AS cnt
              FROM   club_members
              WHERE  status = 'approved'
              GROUP BY club_id
              HAVING cnt > (
-               SELECT AVG(sub.member_count)
+               SELECT /*+ MAX_EXECUTION_TIME(8000) */ AVG(sub.member_count)
                FROM (
-                 SELECT COUNT(*) AS member_count
+                 SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS member_count
                  FROM   club_members
                  WHERE  status = 'approved'
                  GROUP BY club_id
@@ -82,15 +82,15 @@ export async function subquery(req, res, next) {
         );
 
         [rows] = await readPool.execute(
-          `SELECT c.club_id, c.name AS club_name, c.status,
+          `SELECT /*+ MAX_EXECUTION_TIME(8000) */ c.club_id, c.name AS club_name, c.status,
                   COUNT(cm.student_id) AS approved_members
            FROM   clubs c
            JOIN   club_members cm ON cm.club_id = c.club_id AND cm.status = 'approved'
            GROUP BY c.club_id, c.name, c.status
            HAVING approved_members > (
-             SELECT AVG(sub.member_count)
+             SELECT /*+ MAX_EXECUTION_TIME(8000) */ AVG(sub.member_count)
              FROM (
-               SELECT COUNT(*) AS member_count
+               SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS member_count
                FROM   club_members
                WHERE  status = 'approved'
                GROUP BY club_id
@@ -107,20 +107,20 @@ export async function subquery(req, res, next) {
       // ------------------------------------------------------------------
       else if (option === 'events_no_registrations') {
         [[{ total }]] = await readPool.execute(
-          `SELECT COUNT(*) AS total
+          `SELECT /*+ MAX_EXECUTION_TIME(8000) */ COUNT(*) AS total
            FROM events e
            WHERE NOT EXISTS (
-             SELECT 1 FROM registrations r WHERE r.event_id = e.event_id
+             SELECT /*+ MAX_EXECUTION_TIME(8000) */ 1 FROM registrations r WHERE r.event_id = e.event_id
            )`
         );
 
         [rows] = await readPool.execute(
-          `SELECT e.event_id, e.title, e.event_type, e.start_datetime, e.status,
+          `SELECT /*+ MAX_EXECUTION_TIME(8000) */ e.event_id, e.title, e.event_type, e.start_datetime, e.status,
                   c.name AS club_name
            FROM   events e
            JOIN   clubs c ON c.club_id = e.club_id
            WHERE  NOT EXISTS (
-             SELECT 1 FROM registrations r WHERE r.event_id = e.event_id
+             SELECT /*+ MAX_EXECUTION_TIME(8000) */ 1 FROM registrations r WHERE r.event_id = e.event_id
            )
            ORDER BY e.start_datetime DESC
            LIMIT ? OFFSET ?`,
