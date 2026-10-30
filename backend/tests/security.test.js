@@ -230,6 +230,20 @@ test('student list is admin-only and student/report details are self-or-admin', 
   assert.ok(me.payload.data.roll_no);
   assert.ok(me.payload.data.phone === null || typeof me.payload.data.phone === 'string');
 
+  const anonymousRegistrations = await request('/auth/me/registrations');
+  assert.equal(anonymousRegistrations.response.status, 401);
+  const ownRegistrations = await request('/auth/me/registrations', { token: tokens.plain });
+  assert.equal(ownRegistrations.response.status, 200);
+  assert.ok(Array.isArray(ownRegistrations.payload.data));
+  for (const registration of ownRegistrations.payload.data) {
+    for (const key of ['registrationId', 'eventId', 'eventTitle', 'status']) {
+      assert.ok(Object.hasOwn(registration, key), `registration must include ${key}`);
+    }
+    for (const key of ['email', 'phone', 'roll_no', 'studentId', 'password_hash']) {
+      assert.ok(!Object.hasOwn(registration, key), `registration must not include ${key}`);
+    }
+  }
+
   const adminMe = await request('/auth/me', { token: tokens.admin });
   assert.equal(adminMe.response.status, 200);
   for (const key of ['userId', 'name', 'email', 'role']) {

@@ -154,3 +154,38 @@ export async function me(req, res, next) {
     next(err);
   }
 }
+
+export async function myRegistrations(req, res, next) {
+  try {
+    const { result: [rows], executionTimeMs } = await timed(() =>
+      readPool.execute(
+        `SELECT
+           r.registration_id AS registrationId,
+           r.event_id        AS eventId,
+           e.title           AS eventTitle,
+           e.start_datetime  AS startDatetime,
+           e.status          AS eventStatus,
+           v.name            AS venue,
+           r.status,
+           r.registered_at   AS registeredAt
+         FROM registrations r
+         JOIN events e ON e.event_id = r.event_id
+         JOIN venues v ON v.venue_id = e.venue_id
+         WHERE r.student_id = ?
+         ORDER BY r.registered_at DESC, r.registration_id DESC`,
+        [req.user.userId],
+      )
+    );
+
+    res.json({
+      data: rows.map(row => ({
+        ...row,
+        startDatetime: row.startDatetime ? new Date(row.startDatetime).toISOString() : null,
+        registeredAt: row.registeredAt ? new Date(row.registeredAt).toISOString() : null,
+      })),
+      meta: { rowCount: rows.length, executionTimeMs },
+    });
+  } catch (err) {
+    next(err);
+  }
+}

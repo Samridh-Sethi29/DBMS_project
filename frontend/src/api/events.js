@@ -5,6 +5,8 @@ export const getEvent = eventId => request(`/api/events/${encodeURIComponent(eve
 export const getEventMemories = eventId => request(`/api/events/${encodeURIComponent(eventId)}/memories`);
 export const registerForEvent = eventId =>
   request(`/api/events/${encodeURIComponent(eventId)}/register`, { method: 'POST' });
+export const cancelEventRegistration = eventId =>
+  request(`/api/events/${encodeURIComponent(eventId)}/register`, { method: 'DELETE' });
 
 const categories = {
   technical: 'Technical',

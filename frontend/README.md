@@ -1,45 +1,35 @@
-# CampusHub - College Event & Club Management Platform
+# CampusHub frontend
 
-CampusHub is a modern university web application built to streamline college events, hackathons, student societies, and admission pass ticketing with verifiable QR codes.
+The React/Vite frontend reads clubs, events, and event memories from the Express API. Authentication uses the API's JWT endpoints; the frontend does not contain demo users or fallback club/event data.
 
-## Features
+## Requirements
 
-- **Live Event Discovery & Search**: Filter upcoming hackathons, sports tournaments, cultural nights, and workshops by category, date, or popularity.
-- **Student Societies & Clubs**: Explore verified student bodies (Code Nexus, Tarang Cultural, RoboCrafters, Aperture Shutterbugs, Titan Sports), join societies, or register new ones.
-- **Event Registrations & Dynamic QR Passes**: Instant event registration with dynamic QR code generation for venue entry check-ins.
-- **Digital Wallet**: View, download, print, or cancel booked event tickets.
-- **Campus Memories**: Photo wall showcasing highlights of campus fests with likes and photo submission modals.
-- **Role-Based Auth & One-Click Demo**: Test instantly as Student, Club Lead, or Faculty Admin.
-- **Admin Portal**: Publish new campus events, monitor seat capacities, manage attendees, and export rosters to CSV.
+- Node.js and npm
+- The backend API and MySQL database running locally
 
-## Tech Stack
+## Getting started
 
-- **Frontend**: React 18, TypeScript, Vite
-- **Styling**: Tailwind CSS, Manrope typography, Lucide Icons
-- **State & Caching**: TanStack Query (React Query), LocalStorage persistence
-- **Routing**: React Router DOM (v6)
-- **Utilities**: `qrcode`, `canvas-confetti`
-
-## Getting Started
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/Samridh-Sethi29/DBMS_project.git
-cd DBMS_project
-```
-
-### 2. Install dependencies
-```bash
+```powershell
 npm install
-```
-
-### 3. Start development server
-```bash
+Copy-Item .env.example .env
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### 4. Build for production
-```bash
+By default, Vite starts at `http://localhost:5173` and the API client uses `http://localhost:3000`. Set `VITE_API_URL` in `.env` to the backend base URL when it runs elsewhere. Configure the backend's `CORS_ORIGIN` to allow the frontend origin.
+
+## Build
+
+```powershell
 npm run build
 ```
+
+## API-connected pages
+
+- Home and event listings: active club, upcoming event, and memory endpoints.
+- Club listing and detail: paginated/filterable clubs, club profile, core members, and upcoming events.
+- Event detail and memories: public event detail and event photo/recap endpoints.
+- Login, registration, and session restoration: `/auth/login`, `/auth/register`, and `/auth/me`.
+- My registrations: authenticated `/auth/me/registrations`; cancellation uses the event registration endpoint.
+- Admin overview: guarded for administrator accounts; currently read-only because the API does not expose the former dashboard's editing and roster workflows.
+
+API errors are shown in the UI with retry controls for data queries. Missing or unavailable image URLs display neutral placeholders.
