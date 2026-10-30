@@ -1,16 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, Clock, MapPin, Users, ArrowRight, Tag } from 'lucide-react';
+import { Calendar, Clock, MapPin, ArrowRight } from 'lucide-react';
 import { CampusEvent } from '@/lib/store';
+import ApiImage from '@/components/ApiImage';
 
 interface EventCardProps {
   event: CampusEvent;
 }
 
 export default function EventCard({ event }: EventCardProps) {
-  const percentFull = Math.min(100, Math.round((event.registeredCount / event.capacity) * 100));
-  const isSoldOut = event.registeredCount >= event.capacity;
-
   const categoryColors: Record<string, string> = {
     Technical: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
     Cultural: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20',
@@ -26,12 +24,7 @@ export default function EventCard({ event }: EventCardProps) {
     <div className="group rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1">
       {/* Event banner */}
       <div className="relative h-48 w-full overflow-hidden bg-slate-800">
-        <img
-          src={event.image}
-          alt={event.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          loading="lazy"
-        />
+        <ApiImage src={event.image} alt={`${event.title} poster`} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent" />
         
         {/* Category tag */}
@@ -39,18 +32,11 @@ export default function EventCard({ event }: EventCardProps) {
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border backdrop-blur-md ${badgeColor}`}>
             {event.category}
           </span>
-          {event.featured && (
+          {event.isTentative && (
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-              Featured
+              Tentative
             </span>
           )}
-        </div>
-
-        {/* Pricing */}
-        <div className="absolute top-3 right-3">
-          <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-950/80 text-white border border-slate-700/60 backdrop-blur-md">
-            {event.registrationFee === 0 ? 'FREE' : `₹${event.registrationFee}`}
-          </span>
         </div>
 
         {/* Date badge on bottom-left */}
@@ -85,35 +71,18 @@ export default function EventCard({ event }: EventCardProps) {
             <span className="truncate">{event.venue}</span>
           </div>
 
-          {/* Capacity bar */}
-          <div className="pt-1">
-            <div className="flex justify-between text-[11px] text-slate-400 mb-1">
-              <span className="flex items-center gap-1">
-                <Users className="w-3 h-3 text-slate-500" />
-                {event.registeredCount} / {event.capacity} registered
-              </span>
-              <span className={percentFull >= 90 ? 'text-rose-400 font-semibold' : 'text-slate-400'}>
-                {isSoldOut ? 'Full' : `${event.capacity - event.registeredCount} spots left`}
-              </span>
-            </div>
-            <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  percentFull >= 90 ? 'bg-rose-500' : 'bg-gradient-to-r from-indigo-500 to-cyan-400'
-                }`}
-                style={{ width: `${percentFull}%` }}
-              />
-            </div>
-          </div>
         </div>
 
         {/* CTA */}
         <div className="pt-2">
+          {event.signupMode === 'external' && event.externalSignupUrl ? (
+            <a href={event.externalSignupUrl} target="_blank" rel="noreferrer" className="mb-2 block text-center text-xs text-cyan-300 underline">External sign-up</a>
+          ) : null}
           <Link
             to={`/events/${event.id}`}
             className="w-full py-2.5 px-4 rounded-xl font-medium text-xs text-center flex items-center justify-center gap-2 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 hover:border-transparent transition-all"
           >
-            <span>View Details & Register</span>
+            <span>View event details</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>

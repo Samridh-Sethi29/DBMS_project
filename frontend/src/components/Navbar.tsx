@@ -13,12 +13,12 @@ import {
   Sparkles,
   GraduationCap
 } from 'lucide-react';
-import { useUser } from '@/lib/store';
+import { useAuth } from '@/auth/AuthContext';
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { user, logout } = useUser();
+  const { user, logout } = useAuth();
 
   const navLinks = [
     { label: 'Home', path: '/' },
@@ -90,7 +90,7 @@ export default function Navbar() {
                       {user.name}
                     </p>
                     <p className="text-[10px] text-slate-400 capitalize">
-                      {user.role} {user.rollNumber && `• ${user.rollNumber}`}
+                      {user.role} {user.roll_no && `• ${user.roll_no}`}
                     </p>
                   </div>
                 </Link>

@@ -6,15 +6,12 @@ import {
   Calendar, 
   SlidersHorizontal, 
   Sparkles, 
-  Zap, 
-  Trophy, 
-  Award, 
   RotateCcw,
-  Tag
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import EventCard from '@/components/EventCard';
+import QueryState from '@/components/QueryState';
 import { useEvents } from '@/lib/store';
 
 export default function Events() {
@@ -24,21 +21,14 @@ export default function Events() {
 
   const [category, setCategory] = useState<string>(initialCategory);
   const [searchQuery, setSearchQuery] = useState<string>(initialSearch);
-  const [freeOnly, setFreeOnly] = useState<boolean>(false);
-  const [sortBy, setSortBy] = useState<'date' | 'popular'>('date');
+  const { events, isLoading, error, refetch } = useEvents();
 
-  const { events } = useEvents();
-
-  const categories = ['All', 'Technical', 'Cultural', 'Sports', 'Workshops', 'Arts', 'Management'];
+  const categories = ['All', ...Array.from(new Set(events.map(event => event.category))).sort()];
 
   const filteredEvents = useMemo(() => {
     return events.filter((ev) => {
       // Category filter
       if (category !== 'All' && ev.category.toLowerCase() !== category.toLowerCase()) {
-        return false;
-      }
-      // Free only filter
-      if (freeOnly && ev.registrationFee > 0) {
         return false;
       }
       // Search term filter
@@ -48,19 +38,13 @@ export default function Events() {
         const matchesClub = ev.clubName.toLowerCase().includes(query);
         const matchesVenue = ev.venue.toLowerCase().includes(query);
         const matchesDesc = ev.description.toLowerCase().includes(query);
-        const matchesTags = ev.tags.some(t => t.toLowerCase().includes(query));
-        if (!matchesTitle && !matchesClub && !matchesVenue && !matchesDesc && !matchesTags) {
+        if (!matchesTitle && !matchesClub && !matchesVenue && !matchesDesc) {
           return false;
         }
       }
       return true;
-    }).sort((a, b) => {
-      if (sortBy === 'popular') {
-        return b.registeredCount - a.registeredCount;
-      }
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
-    });
-  }, [events, category, searchQuery, freeOnly, sortBy]);
+    }).sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime());
+  }, [events, category, searchQuery]);
 
   const handleCategorySelect = (cat: string) => {
     setCategory(cat);
@@ -75,8 +59,6 @@ export default function Events() {
   const handleReset = () => {
     setCategory('All');
     setSearchQuery('');
-    setFreeOnly(false);
-    setSortBy('date');
     setSearchParams({});
   };
 
@@ -114,28 +96,8 @@ export default function Events() {
               />
             </div>
 
-            {/* Quick toggles */}
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-300 cursor-pointer px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700">
-                <input
-                  type="checkbox"
-                  checked={freeOnly}
-                  onChange={(e) => setFreeOnly(e.target.checked)}
-                  className="rounded border-slate-700 text-indigo-600 focus:ring-0"
-                />
-                <span>Free Entry Only</span>
-              </label>
-
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="text-xs font-medium text-slate-300 bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 outline-none cursor-pointer hover:border-slate-700"
-              >
-                <option value="date">Sort: Upcoming Dates</option>
-                <option value="popular">Sort: Most Popular</option>
-              </select>
-
-              {(category !== 'All' || searchQuery || freeOnly) && (
+              {(category !== 'All' || searchQuery) && (
                 <button
                   onClick={handleReset}
                   className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20"
@@ -172,6 +134,7 @@ export default function Events() {
         </div>
 
         {/* Results Info */}
+        <QueryState loading={isLoading} error={error} onRetry={() => void refetch()} />
         <div className="flex items-center justify-between mb-6 text-xs text-slate-400">
           <span>Showing <strong className="text-white">{filteredEvents.length}</strong> events</span>
           {category !== 'All' && (
@@ -180,13 +143,13 @@ export default function Events() {
         </div>
 
         {/* Events Grid */}
-        {filteredEvents.length > 0 ? (
+        {!isLoading && !error && filteredEvents.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredEvents.map((event) => (
               <EventCard key={event.id} event={event} />
             ))}
           </div>
-        ) : (
+        ) : !isLoading && !error ? (
           <div className="py-20 text-center rounded-3xl border border-dashed border-slate-800 bg-slate-900/30">
             <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center mx-auto mb-4 text-slate-400">
               <Calendar className="w-8 h-8 opacity-60" />
@@ -202,7 +165,7 @@ export default function Events() {
               Clear All Filters
             </button>
           </div>
-        )}
+        ) : null}
       </main>
 
       <Footer />

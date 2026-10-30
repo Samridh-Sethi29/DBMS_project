@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Calendar, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Club } from '@/lib/store';
+import ApiImage from '@/components/ApiImage';
 
 interface ClubCardProps {
   club: Club;
@@ -12,12 +13,7 @@ export default function ClubCard({ club }: ClubCardProps) {
     <div className="group rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 overflow-hidden flex flex-col transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1">
       {/* Banner & Logo */}
       <div className="relative h-32 w-full overflow-hidden bg-slate-800">
-        <img
-          src={club.banner}
-          alt={club.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-70"
-          loading="lazy"
-        />
+        <ApiImage src={club.banner} alt={`${club.name} banner`} className="h-full w-full object-cover opacity-70 transition-transform duration-500 group-hover:scale-105" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
         
         <span className="absolute top-3 right-3 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-slate-900/80 border border-slate-700 text-indigo-300 backdrop-blur-md">
@@ -29,12 +25,12 @@ export default function ClubCard({ club }: ClubCardProps) {
         <div>
           <div className="flex items-end justify-between mb-3">
             <div className="w-16 h-16 rounded-2xl border-2 border-slate-950 bg-slate-800 overflow-hidden shadow-lg">
-              <img src={club.logo} alt={club.name} className="w-full h-full object-cover" />
+              <ApiImage src={club.logo} alt={`${club.name} logo`} className="h-full w-full object-cover" />
             </div>
             <div className="text-right">
               <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
                 <ShieldCheck className="w-3 h-3" />
-                Verified Club
+                Active Club
               </span>
             </div>
           </div>
@@ -55,10 +51,6 @@ export default function ClubCard({ club }: ClubCardProps) {
             <span className="flex items-center gap-1.5">
               <Users className="w-3.5 h-3.5 text-slate-500" />
               <strong className="text-slate-200">{club.memberCount}</strong> members
-            </span>
-            <span className="flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5 text-slate-500" />
-              <strong className="text-slate-200">{club.eventsCount}</strong> events
             </span>
           </div>
 

@@ -8,6 +8,8 @@ import Memories from "@/pages/Memories";
 import Login from "@/pages/Login";
 import MyRegistrations from "@/pages/MyRegistrations";
 import AdminDashboard from "@/pages/AdminDashboard";
+import ProtectedRoute from "@/auth/ProtectedRoute";
+import Register from "@/pages/Register";
 
 // One <Route> per page in src/pages; BrowserRouter already wraps this in main.tsx.
 export default function App() {
@@ -20,8 +22,9 @@ export default function App() {
       <Route path="/clubs/:clubId" element={<ClubDetails />} />
       <Route path="/memories" element={<Memories />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/my-registrations" element={<MyRegistrations />} />
-      <Route path="/admin" element={<AdminDashboard />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/my-registrations" element={<ProtectedRoute><MyRegistrations /></ProtectedRoute>} />
+      <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
     </Routes>
   );
 }
