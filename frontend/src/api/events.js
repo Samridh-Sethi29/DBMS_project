@@ -35,6 +35,7 @@ export function mapEvent(event) {
     image: event.posterUrl || event.poster_url || '',
     status: event.status === 'completed' ? 'completed' : 'upcoming',
     isTentative: Boolean(event.isTentative ?? event.is_tentative),
+    isPlaceholder: Boolean(event.isPlaceholder ?? event.is_placeholder),
     signupMode: event.signupMode || event.signup_mode || 'none',
     externalSignupUrl: event.externalSignupUrl || event.external_signup_url || null,
     endDatetime: event.endDatetime || event.end_datetime || null,

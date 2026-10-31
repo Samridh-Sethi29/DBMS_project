@@ -17,6 +17,7 @@ export interface CampusEvent {
   image: string;
   status: 'upcoming' | 'ongoing' | 'completed';
   isTentative?: boolean;
+  isPlaceholder?: boolean;
   signupMode?: string;
   externalSignupUrl?: string | null;
   endDatetime?: string | null;

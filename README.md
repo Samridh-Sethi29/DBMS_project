@@ -153,6 +153,23 @@ npm run preview
 
 Open the local URL printed in your terminal (Vite default: `http://localhost:5173`).
 
+## Importing club data
+
+From the repository root, apply the database migration, seed the required admin account,
+review the cached scrape, then import the approved data:
+
+```bash
+mysql -u your_db_user -p < backend/sql/migrations/003_scraped_clubs.sql
+cd backend
+npm run seed:users
+npm run scrape:clubs
+npm run import:clubs
+```
+
+Club-name, category, and event-type corrections can be maintained by chapter slug in
+`backend/scripts/club-overrides.json`. Downloaded logos and cached source HTML are local
+generated files and are not committed.
+
 ### 🔑 Demo Login
 
 No real authentication exists. Click **Demo Student Login** on `/login`, or enter any valid-looking college email and a password. Passwords are **never** stored.

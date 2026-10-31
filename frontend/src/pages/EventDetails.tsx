@@ -55,7 +55,7 @@ export default function EventDetails() {
               <h1 className="text-3xl font-bold text-white">{event.title}</h1>
               <p className="text-slate-300">{event.description || 'No description provided.'}</p>
               <div className="flex flex-wrap gap-6 text-sm text-slate-300">
-                <span className="inline-flex items-center gap-2"><Calendar className="h-4 w-4 text-indigo-300" />{event.date} {event.time}</span>
+                <span className="inline-flex items-center gap-2"><Calendar className="h-4 w-4 text-indigo-300" />{event.isPlaceholder ? 'Date to be announced' : `${event.date} ${event.time}`}</span>
                 <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4 text-indigo-300" />{event.venue || 'Venue not specified'}</span>
                 <span>By {event.clubName}</span>
               </div>

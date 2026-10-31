@@ -13,6 +13,8 @@ build/
 .env
 .env.local
 backend/.env
+backend/scripts/.cache/
+backend/uploads/
 
 # Logs
 *.log

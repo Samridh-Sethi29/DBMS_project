@@ -42,7 +42,7 @@ export default function EventCard({ event }: EventCardProps) {
         {/* Date badge on bottom-left */}
         <div className="absolute bottom-3 left-3 flex items-center gap-2 text-xs font-medium text-slate-200 bg-slate-900/80 px-2.5 py-1 rounded-md backdrop-blur-sm border border-slate-800">
           <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-          <span>{event.date}</span>
+          <span>{event.isPlaceholder ? 'Date to be announced' : event.date}</span>
         </div>
       </div>
 
