@@ -8,6 +8,8 @@
     "start": "node src/app.js",
     "dev": "node --watch src/app.js",
     "seed:users": "node scripts/seed-users.js",
+    "scrape:clubs": "node scripts/scrape-svnit-clubs.js --dry-run",
+    "import:clubs": "node scripts/scrape-svnit-clubs.js --import",
     "test:public": "node --test tests/public-endpoints.test.js",
     "test:security": "node --test tests/security.test.js"
   },
@@ -20,5 +22,8 @@
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.9.7",
     "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "cheerio": "^1.2.0"
   }
 }

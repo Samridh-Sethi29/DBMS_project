@@ -19,7 +19,7 @@ export async function listEvents(req, res, next) {
       );
       const [rows] = await readPool.execute(
         `SELECT e.event_id, e.club_id, e.venue_id, e.title, e.description, e.event_type,
-                e.start_datetime, e.end_datetime, e.is_tentative, e.poster_url, e.recap_text,
+                e.start_datetime, e.end_datetime, e.is_tentative, e.is_placeholder, e.poster_url, e.recap_text,
                 e.signup_mode, e.external_signup_url, e.registration_deadline,
                 e.max_participants, e.status, e.created_at, e.updated_at,
                 c.name AS club_name, v.name AS venue_name
@@ -138,7 +138,7 @@ export async function filterEvents(req, res, next) {
       );
       const [rows] = await readPool.execute(
         `SELECT e.event_id, e.club_id, e.venue_id, e.title, e.description, e.event_type,
-                e.start_datetime, e.end_datetime, e.is_tentative, e.poster_url, e.recap_text,
+                e.start_datetime, e.end_datetime, e.is_tentative, e.is_placeholder, e.poster_url, e.recap_text,
                 e.signup_mode, e.external_signup_url, e.registration_deadline,
                 e.max_participants, e.status, e.created_at, e.updated_at,
                 c.name AS club_name, v.name AS venue_name

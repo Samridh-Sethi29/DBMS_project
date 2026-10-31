@@ -109,6 +109,8 @@ export async function getPublicClub(req, res, next) {
            c.description,
            c.logo_url          AS logoUrl,
            c.website_url       AS websiteUrl,
+           c.source_url        AS sourceUrl,
+           c.contact_email     AS contactEmail,
            cc.name             AS category,
            fa.name             AS facultyAdvisor
          FROM clubs c
@@ -133,6 +135,22 @@ export async function getPublicClub(req, res, next) {
         [clubId],
       );
 
+      const [links] = await readPool.execute(
+        `SELECT platform, url
+         FROM club_links
+         WHERE club_id = ?
+         ORDER BY platform, url`,
+        [clubId],
+      );
+
+      const [contacts] = await readPool.execute(
+        `SELECT person_name AS name, designation, is_faculty AS isFaculty
+         FROM club_contacts
+         WHERE club_id = ?
+         ORDER BY display_order, contact_id`,
+        [clubId],
+      );
+
       // Upcoming events (next 12 months, default from view)
       const [upcoming] = await readPool.execute(
         `SELECT
@@ -142,6 +160,7 @@ export async function getPublicClub(req, res, next) {
            v.start_datetime        AS startDatetime,
            v.end_datetime          AS endDatetime,
            v.is_tentative          AS isTentative,
+           v.is_placeholder        AS isPlaceholder,
            v.poster_url            AS posterUrl,
            v.venue,
            v.signup_mode           AS signupMode,
@@ -153,12 +172,12 @@ export async function getPublicClub(req, res, next) {
         [clubId],
       );
 
-      return { club, coreMembers, upcoming };
+      return { club, coreMembers, links, contacts, upcoming };
     });
 
     if (!result) return next(notFound('Club not found.', 'CLUB_NOT_FOUND'));
 
-    const { club, coreMembers, upcoming } = result;
+    const { club, coreMembers, links, contacts, upcoming } = result;
 
     const mapEvent = e => ({
       eventId             : e.eventId,
@@ -167,6 +186,7 @@ export async function getPublicClub(req, res, next) {
       startDatetime       : e.startDatetime       ? new Date(e.startDatetime).toISOString()       : null,
       endDatetime         : e.endDatetime          ? new Date(e.endDatetime).toISOString()          : null,
       isTentative         : Boolean(e.isTentative),
+      isPlaceholder       : Boolean(e.isPlaceholder),
       posterUrl           : resolveUrl(e.posterUrl),
       venue               : e.venue,
       signupMode          : e.signupMode,
@@ -179,7 +199,11 @@ export async function getPublicClub(req, res, next) {
       data: {
         ...club,
         logoUrl       : resolveUrl(club.logoUrl),
+        websiteUrl    : resolveUrl(club.websiteUrl),
+        sourceUrl     : resolveUrl(club.sourceUrl),
         coreMembers   : coreMembers.map(m => ({ ...m, photoUrl: resolveUrl(m.photoUrl) })),
+        links         : links.map(link => ({ ...link, url: resolveUrl(link.url) })),
+        contacts      : contacts.map(contact => ({ ...contact, isFaculty: Boolean(contact.isFaculty) })),
         upcomingEvents: upcoming.map(mapEvent),
       },
       meta: { rowCount: 1, executionTimeMs },
@@ -212,6 +236,7 @@ export async function getUpcomingEvents(req, res, next) {
            v.start_datetime        AS startDatetime,
            v.end_datetime          AS endDatetime,
            v.is_tentative          AS isTentative,
+           v.is_placeholder        AS isPlaceholder,
            v.poster_url            AS posterUrl,
            v.venue,
            v.signup_mode           AS signupMode,
@@ -235,6 +260,7 @@ export async function getUpcomingEvents(req, res, next) {
       startDatetime       : e.startDatetime       ? new Date(e.startDatetime).toISOString()       : null,
       endDatetime         : e.endDatetime          ? new Date(e.endDatetime).toISOString()          : null,
       isTentative         : Boolean(e.isTentative),
+      isPlaceholder       : Boolean(e.isPlaceholder),
       posterUrl           : resolveUrl(e.posterUrl),
       venue               : e.venue,
       signupMode          : e.signupMode,
@@ -280,6 +306,7 @@ export async function getPastEvents(req, res, next) {
            v.title,
            v.event_type     AS eventType,
            v.start_datetime AS startDatetime,
+           v.is_placeholder AS isPlaceholder,
            v.poster_url     AS posterUrl,
            v.recap_text     AS recapText,
            v.photo_count    AS photoCount
@@ -298,6 +325,7 @@ export async function getPastEvents(req, res, next) {
     const data = result.rows.map(e => ({
       ...e,
       startDatetime: e.startDatetime ? new Date(e.startDatetime).toISOString() : null,
+      isPlaceholder: Boolean(e.isPlaceholder),
       posterUrl    : resolveUrl(e.posterUrl),
     }));
 
@@ -321,6 +349,7 @@ export async function getEventMemories(req, res, next) {
            e.title,
            e.start_datetime AS startDatetime,
            e.end_datetime   AS endDatetime,
+           e.is_placeholder AS isPlaceholder,
            e.recap_text     AS recapText,
            e.status,
            c.club_id        AS clubId,
@@ -364,6 +393,7 @@ export async function getEventMemories(req, res, next) {
           eventId      : event.eventId,
           title        : event.title,
           startDatetime: event.startDatetime ? new Date(event.startDatetime).toISOString() : null,
+          isPlaceholder: Boolean(event.isPlaceholder),
           recapText    : event.recapText,
           club         : { clubId: event.clubId, name: event.clubName },
         },
@@ -397,6 +427,7 @@ export async function getPublicEvent(req, res, next) {
            e.start_datetime        AS startDatetime,
            e.end_datetime          AS endDatetime,
            e.is_tentative          AS isTentative,
+           e.is_placeholder        AS isPlaceholder,
            e.poster_url            AS posterUrl,
            e.signup_mode           AS signupMode,
            e.external_signup_url   AS externalSignupUrl,
@@ -428,6 +459,7 @@ export async function getPublicEvent(req, res, next) {
         startDatetime       : event.startDatetime       ? new Date(event.startDatetime).toISOString()       : null,
         endDatetime         : event.endDatetime          ? new Date(event.endDatetime).toISOString()          : null,
         isTentative         : Boolean(event.isTentative),
+        isPlaceholder       : Boolean(event.isPlaceholder),
         posterUrl           : resolveUrl(event.posterUrl),
         venue               : event.venue,
         signupMode          : event.signupMode,

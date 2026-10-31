@@ -62,6 +62,9 @@ CREATE TABLE clubs (
   description        TEXT,                        -- editable by core members (sanitize in the API)
   logo_url           VARCHAR(255) NULL,
   website_url        VARCHAR(255) NULL,
+  source_url         VARCHAR(255) NULL UNIQUE,
+  contact_email      VARCHAR(120) NULL,
+  scraped_at         TIMESTAMP NULL,
   category_id        INT NOT NULL,
   faculty_advisor_id INT NULL,                    -- optional staff contact (replaces old coordinator)
   status             ENUM('active','inactive') NOT NULL DEFAULT 'active',
@@ -74,6 +77,26 @@ CREATE TABLE clubs (
   CONSTRAINT fk_club_advisor FOREIGN KEY (faculty_advisor_id) REFERENCES users(user_id) ON DELETE SET NULL,
   CONSTRAINT fk_club_updater FOREIGN KEY (updated_by)         REFERENCES users(user_id) ON DELETE SET NULL,
   INDEX idx_clubs_category (category_id)
+);
+
+CREATE TABLE club_links (
+  link_id   INT AUTO_INCREMENT PRIMARY KEY,
+  club_id   INT NOT NULL,
+  platform  ENUM('website','facebook','twitter','instagram','linkedin','youtube','blog','other') NOT NULL,
+  url       VARCHAR(255) NOT NULL,
+  CONSTRAINT chk_club_link_url CHECK (url LIKE 'http://%' OR url LIKE 'https://%'),
+  CONSTRAINT fk_club_link_club FOREIGN KEY (club_id) REFERENCES clubs(club_id) ON DELETE CASCADE,
+  UNIQUE (club_id, url)
+);
+
+CREATE TABLE club_contacts (
+  contact_id    INT AUTO_INCREMENT PRIMARY KEY,
+  club_id       INT NOT NULL,
+  person_name   VARCHAR(100) NOT NULL,
+  designation   VARCHAR(100) NOT NULL,
+  is_faculty    BOOLEAN NOT NULL,
+  display_order SMALLINT NOT NULL,
+  CONSTRAINT fk_club_contact_club FOREIGN KEY (club_id) REFERENCES clubs(club_id) ON DELETE CASCADE
 );
 
 -- Student <-> club, with the per-club role
@@ -117,6 +140,7 @@ CREATE TABLE events (
   start_datetime        DATETIME NOT NULL,
   end_datetime          DATETIME NOT NULL,
   is_tentative          BOOLEAN NOT NULL DEFAULT FALSE,  -- date not final yet
+  is_placeholder        BOOLEAN NOT NULL DEFAULT FALSE,
   poster_url            VARCHAR(255) NULL,
   recap_text            TEXT NULL,                       -- shown on the memory page
   signup_mode           ENUM('none','internal','external') NOT NULL DEFAULT 'none',
@@ -423,9 +447,9 @@ FROM club_members cm
 JOIN users u ON u.user_id = cm.student_id
 WHERE cm.status = 'approved' AND cm.member_role <> 'member' AND u.is_active = TRUE;
 
-CREATE VIEW v_upcoming_events AS              -- club page: next ~12 months
+CREATE OR REPLACE VIEW v_upcoming_events AS   -- club page: next ~12 months
 SELECT e.event_id, e.club_id, c.name AS club, e.title, e.description, e.event_type,
-       e.start_datetime, e.end_datetime, e.is_tentative, e.poster_url,
+       e.start_datetime, e.end_datetime, e.is_tentative, e.is_placeholder, e.poster_url,
        e.signup_mode, e.external_signup_url, e.registration_deadline,
        v.name AS venue
 FROM events e
@@ -435,9 +459,9 @@ WHERE e.status <> 'cancelled'
   AND e.end_datetime >= NOW()
   AND e.start_datetime < DATE_ADD(NOW(), INTERVAL 12 MONTH);
 
-CREATE VIEW v_past_events AS                  -- memory page
+CREATE OR REPLACE VIEW v_past_events AS       -- memory page
 SELECT e.event_id, e.club_id, c.name AS club, e.title, e.event_type,
-       e.start_datetime, e.poster_url, e.recap_text,
+       e.start_datetime, e.is_placeholder, e.poster_url, e.recap_text,
        (SELECT COUNT(*) FROM event_photos p WHERE p.event_id = e.event_id) AS photo_count
 FROM events e
 JOIN clubs c ON c.club_id = e.club_id
@@ -478,7 +502,8 @@ LEFT JOIN certificates cert ON cert.registration_id = r.registration_id;
 -- SAMPLE DATA (password hashes are placeholders; the backend hashes real ones)
 -- =====================================================================
 INSERT INTO departments (name) VALUES ('Computer Engineering'),('Mechanical Engineering'),('Electronics');
-INSERT INTO club_categories (name) VALUES ('Technical'),('Cultural'),('Sports'),('Academic');
+INSERT INTO club_categories (name) VALUES
+  ('Technical'),('Cultural'),('Sports'),('Academic'),('Social Service'),('Literary');
 
 INSERT INTO users (name,email,password_hash,role,profile_photo_url) VALUES
  ('Admin',       'admin@college.edu','CHANGE_ME','admin','/uploads/profiles/admin.jpg'),

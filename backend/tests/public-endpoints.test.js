@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { writePool } from '../src/config/db.js';
 
 const BASE_URL = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -28,6 +29,21 @@ const sqlText = /\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|UNION|FROM|J
 const stackTrace = /(?:\bat\s+.+:\d+:\d+\b|\b(?:Error|Exception):\s)/i;
 const emailValue = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const isoDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const publicClubContactSchema = z.object({
+  name: z.string(),
+  designation: z.string(),
+  isFaculty: z.boolean(),
+}).strict();
+const publicClubLinkSchema = z.object({
+  platform: z.enum(['website', 'facebook', 'twitter', 'instagram', 'linkedin', 'youtube', 'blog', 'other']),
+  url: z.string().url(),
+}).strict();
+const publicPlaceholderEventSchema = z.object({
+  isPlaceholder: z.boolean(),
+}).passthrough();
+const publicEventListItemSchema = z.object({
+  is_placeholder: z.union([z.boolean(), z.literal(0), z.literal(1)]),
+}).passthrough();
 
 function scanPublicJson(value, path = '$') {
   if (Array.isArray(value)) {
@@ -39,7 +55,10 @@ function scanPublicJson(value, path = '$') {
   for (const [key, child] of Object.entries(value)) {
     assert.equal(forbiddenKeys.has(key), false, `${path}.${key} must not be public`);
     if (typeof child === 'string') {
-      assert.equal(emailValue.test(child), false, `${path}.${key} must not contain an email`);
+      if (emailValue.test(child)) {
+        assert.equal(key, 'contactEmail', `${path}.${key} is the only public email field`);
+        assert.match(child, /^[a-z0-9._+-]+@svnit\.ac\.in$/i, `${path}.${key} must be a generic SVNIT club address`);
+      }
       if (/(datetime|issuedat)$/i.test(key)) {
         assert.match(child, isoDateTime, `${path}.${key} must be an ISO 8601 datetime`);
         assert.equal(new Date(child).toISOString(), child, `${path}.${key} must be a valid ISO datetime`);
@@ -137,7 +156,14 @@ function mysqlDateTime(value) {
   return value.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-async function insertFixtureEvent({ label, daysFromNow, status, signupMode = 'none', tentative = false }) {
+async function insertFixtureEvent({
+  label,
+  daysFromNow,
+  status,
+  signupMode = 'none',
+  tentative = false,
+  placeholder = false,
+}) {
   const title = `${fixturePrefix}_${label}`;
   const start = dateTime(daysFromNow, 10);
   const end = new Date(start.getTime() + 60 * 60 * 1000);
@@ -163,9 +189,9 @@ async function insertFixtureEvent({ label, daysFromNow, status, signupMode = 'no
   const [result] = await writePool.execute(
     `INSERT INTO events
       (club_id, venue_id, title, description, event_type, start_datetime, end_datetime,
-       is_tentative, recap_text, signup_mode, external_signup_url, max_participants,
+       is_tentative, is_placeholder, recap_text, signup_mode, external_signup_url, max_participants,
        status, created_by)
-     VALUES (?, ?, ?, ?, 'technical', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, 'technical', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       fixtures.activeClubId,
       venues[0].venue_id,
@@ -174,6 +200,7 @@ async function insertFixtureEvent({ label, daysFromNow, status, signupMode = 'no
       mysqlDateTime(start),
       mysqlDateTime(end),
       tentative,
+      placeholder,
       status === 'completed' ? `${fixturePrefix} event recap` : null,
       signupMode,
       externalUrl,
@@ -246,6 +273,7 @@ before(async () => {
   await insertFixtureEvent({ label: 'internal', daysFromNow: 8, status: 'scheduled', signupMode: 'internal', tentative: true });
   await insertFixtureEvent({ label: 'external', daysFromNow: 12, status: 'scheduled', signupMode: 'external' });
   await insertFixtureEvent({ label: 'none', daysFromNow: 16, status: 'scheduled', signupMode: 'none' });
+  await insertFixtureEvent({ label: 'placeholder', daysFromNow: 20, status: 'scheduled', tentative: true, placeholder: true });
   await insertFixtureEvent({ label: 'Thirteen Months Event', daysFromNow: 400, status: 'scheduled' });
 
   const [registration] = await writePool.execute(
@@ -409,6 +437,21 @@ test('GET /api/clubs/:clubId returns the public Coding Club profile and ordered 
     expectedMembers,
   );
   assert.ok(Array.isArray(body.data.upcomingEvents));
+  assert.ok(body.data.upcomingEvents.every(event => typeof event.isPlaceholder === 'boolean'));
+});
+
+test('GET /api/clubs/:clubId exposes scraped public metadata without personal contact details', async () => {
+  const [[club]] = await writePool.execute(
+    'SELECT club_id, source_url FROM clubs WHERE source_url IS NOT NULL LIMIT 1',
+  );
+  assert.ok(club, 'an imported SVNIT club must be available');
+  const { response, body } = await request(`/api/clubs/${club.club_id}`);
+  assertStatus(response, 200);
+  assert.equal(body.data.sourceUrl, club.source_url);
+  assert.ok(body.data.contactEmail === null || /^[a-z0-9._+-]+@svnit\.ac\.in$/i.test(body.data.contactEmail));
+  assert.ok(publicClubContactSchema.array().safeParse(body.data.contacts).success);
+  assert.ok(publicClubLinkSchema.array().safeParse(body.data.links).success);
+  for (const link of body.data.links) assert.ok(link.url.startsWith('http://') || link.url.startsWith('https://'));
 });
 
 test('GET /api/clubs/:clubId returns CLUB_NOT_FOUND for inactive or nonexistent clubs', async () => {
@@ -440,6 +483,7 @@ test('GET /api/clubs/:clubId/events/upcoming orders events and excludes cancelle
     body.data.map(event => Date.parse(event.startDatetime)),
     [...body.data.map(event => Date.parse(event.startDatetime))].sort((a, b) => a - b),
   );
+  assert.ok(body.data.every(event => typeof event.isPlaceholder === 'boolean'));
 });
 
 test('GET /api/clubs/:clubId/events/upcoming accepts months=1 and months=24', async () => {
@@ -463,14 +507,19 @@ test('GET /api/clubs/:clubId/events/upcoming exposes signup modes and tentative 
   const internal = byTitle.get(fixtures.names.internal);
   const external = byTitle.get(fixtures.names.external);
   const none = byTitle.get(fixtures.names.none);
-  assert.ok(internal && external && none, 'all signup-mode fixtures must be present');
+  const placeholder = byTitle.get(fixtures.names.placeholder);
+  assert.ok(internal && external && none && placeholder, 'all signup-mode and placeholder fixtures must be present');
   assert.equal(internal.signupMode, 'internal');
   assert.equal(internal.externalSignupUrl, null);
   assert.equal(internal.isTentative, true);
+  assert.equal(internal.isPlaceholder, false);
   assert.equal(external.signupMode, 'external');
   assert.equal(external.externalSignupUrl, 'https://example.invalid/signup');
   assert.equal(none.signupMode, 'none');
   assert.equal(none.externalSignupUrl, null);
+  assert.equal(placeholder.isTentative, true);
+  assert.ok(publicPlaceholderEventSchema.safeParse(placeholder).success);
+  assert.equal(placeholder.isPlaceholder, true);
 });
 
 test('GET /api/clubs/:clubId/events/upcoming returns 404 for unknown or inactive clubs', async () => {
@@ -500,6 +549,7 @@ test('GET /api/clubs/:clubId/events/past orders events newest-first and reports 
   ]);
   assert.equal(Number(pastFixture.photoCount), Number(photoCount));
   assert.equal(Number(pastFixture.photoCount), 3);
+  assert.equal(typeof pastFixture.isPlaceholder, 'boolean');
 });
 
 test('GET /api/clubs/:clubId/events/past pagination supports pageSize=2', async () => {
@@ -530,6 +580,7 @@ test('GET /api/events/:eventId/memories returns the past event and three ordered
   assert.deepEqual(Object.keys(body.data.event.club).sort(), ['clubId', 'name']);
   assert.equal(body.data.event.club.clubId, fixtures.activeClubId);
   assert.equal(body.data.photos.length, 3);
+  assert.equal(typeof body.data.event.isPlaceholder, 'boolean');
   assert.deepEqual(body.data.photos.map(photo => photo.caption), [
     `${fixturePrefix} photo first`,
     `${fixturePrefix} photo second`,
@@ -568,15 +619,23 @@ test('GET /api/events/:eventId returns public detail and hides cancelled events'
   assert.equal(body.data.club.clubId, fixtures.activeClubId);
   assert.equal(body.data.club.name, 'Coding Club');
 
+  const placeholder = await request(`/api/events/${fixtures.eventIdsByLabel.placeholder}`);
+  assertStatus(placeholder.response, 200);
+  assert.equal(placeholder.body.data.isPlaceholder, true);
+  assert.ok(publicPlaceholderEventSchema.safeParse(placeholder.body.data).success);
+
   const cancelled = await request(`/api/events/${fixtures.eventIdsByLabel['Cancelled Future Event']}`);
   assertStatus(cancelled.response, 404);
   assert.equal(cancelled.body.error.code, 'NOT_FOUND');
 });
 
-test('GET /api/events list route returns its regular response', async () => {
-  const all = await request('/api/events');
-  assert.ok(all.response.status === 200 || all.response.status === 401,
-    `expected 200 or an auth-required 401, received ${all.response.status}`);
+test('GET /api/events list route exposes the placeholder flag', async () => {
+  const all = await request('/api/events?pageSize=100');
+  assertStatus(all.response, 200);
+  const placeholder = all.body.data.find(event => event.event_id === fixtures.eventIdsByLabel.placeholder);
+  assert.ok(placeholder, 'placeholder fixture must appear in the public event list');
+  assert.ok(publicEventListItemSchema.safeParse(placeholder).success);
+  assert.equal(Boolean(placeholder.is_placeholder), true);
 });
 
 test('GET /api/events/filter reaches the existing filter route', async () => {
