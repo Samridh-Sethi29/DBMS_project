@@ -2,11 +2,12 @@ const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000').repla
 const TOKEN_KEY = 'ch_token';
 
 export class ApiError extends Error {
-  constructor({ code = 'REQUEST_FAILED', message = 'The request failed.', fields = [] }) {
+  constructor({ code = 'REQUEST_FAILED', message = 'The request failed.', fields = [], details = {} }) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
     this.fields = fields;
+    this.details = details;
   }
 }
 
@@ -53,10 +54,14 @@ export async function request(path, options = {}) {
 
   if (!response.ok) {
     const error = body?.error;
+    const nonCore = error && Object.fromEntries(
+      Object.entries(error).filter(([key]) => !['code', 'message', 'fields'].includes(key)),
+    );
     throw new ApiError({
       code: error?.code || 'REQUEST_FAILED',
       message: error?.message || `Request failed (${response.status}).`,
       fields: Array.isArray(error?.fields) ? error.fields : [],
+      details: nonCore || {},
     });
   }
 

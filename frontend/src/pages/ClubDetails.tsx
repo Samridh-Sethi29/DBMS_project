@@ -1,19 +1,64 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, ExternalLink, Mail, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, ExternalLink, Mail, PlusCircle, Users } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import EventCard from '@/components/EventCard';
 import ApiImage from '@/components/ApiImage';
 import QueryState from '@/components/QueryState';
-import { getClub } from '@/api/clubs.js';
+import { getClub, getMyMemberships, joinClub, leaveClub } from '@/api/clubs.js';
+import { useAuth } from '@/auth/AuthContext';
 import { mapEvent } from '@/api/events.js';
 
 export default function ClubDetails() {
   const { clubId = '' } = useParams();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: club, isLoading, error, refetch } = useQuery({
     queryKey: ['club', clubId],
     queryFn: async () => (await getClub(clubId)).data,
+  });
+  const { data: memberships = [], isLoading: membershipsLoading, error: membershipsError, refetch: refetchMemberships } = useQuery({
+    queryKey: ['my-memberships'],
+    queryFn: async () => (await getMyMemberships()).data,
+    enabled: !!user,
+  });
+
+  const membership = memberships.find(member =>
+    String(member.clubId) === String(clubId) && !['left'].includes(member.status),
+  );
+  const memberRecord = memberships.find(member => String(member.clubId) === String(clubId));
+  const canManageClub = Boolean(membership && membership.status === 'approved' && membership.rank >= 2);
+  const joinMutation = useMutation({
+    mutationFn: () => joinClub(clubId),
+    onSuccess: (response: any) => {
+      const joined = response?.data ?? {};
+      queryClient.invalidateQueries({ queryKey: ['my-memberships'] });
+      queryClient.setQueryData(['my-memberships'], (existing: any[] = []) => [
+        ...existing.filter((item: any) => String(item.clubId) !== String(clubId)),
+        {
+          clubId: Number(clubId),
+          name: club?.name || 'Club',
+          logoUrl: club?.logoUrl || '',
+          role: joined.role || 'member',
+          status: joined.status || 'pending',
+          rank: 1,
+        },
+      ]);
+    },
+    onError: error => {
+      if (error instanceof Error) console.error('Join club failed:', error.message);
+    },
+  });
+  const leaveMutation = useMutation({
+    mutationFn: () => leaveClub(clubId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-memberships'] });
+      queryClient.setQueryData(['my-memberships'], (existing: any[] = []) => existing.filter((item: any) => String(item.clubId) !== String(clubId)));
+    },
+    onError: error => {
+      if (error instanceof Error) console.error('Leave club failed:', error.message);
+    },
   });
 
   return (
@@ -21,7 +66,7 @@ export default function ClubDetails() {
       <Navbar />
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <Link to="/clubs" className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white"><ArrowLeft className="h-4 w-4" /> All clubs</Link>
-        <QueryState loading={isLoading} error={error} onRetry={() => void refetch()} />
+        <QueryState loading={isLoading || membershipsLoading} error={error || membershipsError} onRetry={() => { void refetch(); void refetchMemberships(); }} />
         {!isLoading && !error && !club && <p className="py-12 text-center text-slate-400">Club not found.</p>}
         {!isLoading && !error && club && (
           <>
@@ -34,6 +79,34 @@ export default function ClubDetails() {
                   {club.tagline && <p className="mt-1 text-indigo-300">{club.tagline}</p>}
                   <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300">{club.description || 'No description provided.'}</p>
                   {club.sourceUrl && <a className="mt-4 inline-block text-sm text-slate-400 underline" href={club.sourceUrl} target="_blank" rel="noreferrer">Source: svnit.ac.in</a>}
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    {!user && <Link to="/login" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">Log in to join</Link>}
+                    {user && !membership && (
+                      <button type="button" disabled={joinMutation.isPending} onClick={() => joinMutation.mutate()} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60">
+                        {joinMutation.isPending ? 'Joining…' : 'Join club'}
+                      </button>
+                    )}
+                    {user && membership && (
+                      <button type="button" disabled={leaveMutation.isPending} onClick={() => {
+                        if (window.confirm('Leave this club? Your membership status will be updated immediately.')) {
+                          leaveMutation.mutate();
+                        }
+                      }} className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-4 py-2 text-sm font-medium text-rose-200 disabled:cursor-not-allowed disabled:opacity-60">
+                        {leaveMutation.isPending ? 'Leaving…' : 'Leave club'}
+                      </button>
+                    )}
+                    {canManageClub && (
+                      <>
+                        <Link to={`/clubs/${clubId}/manage`} className="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-800">
+                          Manage club
+                        </Link>
+                        <Link to={`/clubs/${clubId}/manage`} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white">
+                          <PlusCircle className="h-4 w-4" /> Add event
+                        </Link>
+                      </>
+                    )}
+                  </div>
+                  {memberRecord && <p className="mt-3 text-xs uppercase tracking-[0.2em] text-slate-400">Membership: {memberRecord.status} · role {memberRecord.role}</p>}
                 </div>
               </div>
             </section>

@@ -51,7 +51,11 @@ export default function MyRegistrations() {
                   </div>
                   <div className="flex items-start gap-3">
                     <Link to={`/events/${registration.eventId}`} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800">View event</Link>
-                    {registration.status === 'registered' && <button disabled={cancel.isPending} onClick={() => cancel.mutate(registration.eventId)} className="rounded-lg bg-rose-700 px-3 py-2 text-sm text-white disabled:opacity-50">{cancel.isPending ? 'Cancelling…' : 'Cancel'}</button>}
+                    {registration.status === 'registered' && <button disabled={cancel.isPending} onClick={() => {
+                      if (window.confirm('Cancel this registration? You can still re-register later if the event is open.')) {
+                        cancel.mutate(registration.eventId);
+                      }
+                    }} className="rounded-lg bg-rose-700 px-3 py-2 text-sm text-white disabled:opacity-50">{cancel.isPending ? 'Cancelling…' : 'Cancel'}</button>}
                   </div>
                 </div>
               </article>

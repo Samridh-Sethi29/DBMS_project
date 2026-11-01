@@ -21,13 +21,15 @@ DROP USER IF EXISTS 'user_dba'@'localhost';
 -- role_naive: read-only + EXECUTE on read-only stored procedures
 CREATE ROLE 'role_naive';
 GRANT SELECT ON club_event_db.* TO 'role_naive';
--- Allow running user-facing read procedures
+-- Allow running user-facing read procedures and read-only conflict checks
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_user_get_for_login  TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_cursor_all          TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_cursor_batched      TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_search_events       TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_sum_grouped         TO 'role_naive';
 GRANT EXECUTE ON PROCEDURE club_event_db.sp_sum_column          TO 'role_naive';
+GRANT EXECUTE ON PROCEDURE club_event_db.sp_check_venue_conflicts TO 'role_naive';
+GRANT EXECUTE ON PROCEDURE club_event_db.sp_free_venues         TO 'role_naive';
 GRANT EXECUTE ON FUNCTION  club_event_db.fn_total_capacity      TO 'role_naive';
 GRANT EXECUTE ON FUNCTION  club_event_db.fn_club_rank          TO 'role_naive';
 

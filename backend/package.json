@@ -20,6 +20,7 @@
     "express": "^4.19.2",
     "express-rate-limit": "^8.7.2",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.5.0",
     "mysql2": "^3.9.7",
     "zod": "^3.23.8"
   },

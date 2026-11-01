@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import {
   listVenues, getVenue, createVenue, updateVenue, deleteVenue,
 } from '../controllers/venuesController.js';
+import { checkVenueConflicts, listAvailableVenues } from '../controllers/clubManagementController.js';
 
 const router = Router();
 
@@ -15,9 +16,20 @@ const venueSchema = z.object({
   capacity: z.number().int().positive(),
 });
 
-router.get('/',    listVenues);
+const venueConflictSchema = z.object({
+  clubId: z.coerce.number().int().positive(),
+  venueId: z.coerce.number().int().positive(),
+  startDatetime: z.string(),
+  endDatetime: z.string(),
+  excludeEventId: z.coerce.number().int().positive().optional(),
+  minCapacity: z.coerce.number().int().nonnegative().optional(),
+});
+
+router.get('/', listVenues);
+router.get('/available', requireAuth, listAvailableVenues);
+router.post('/conflicts/check', requireAuth, validate(venueConflictSchema), checkVenueConflicts);
 router.get('/:id', getVenue);
-router.post('/',   requireAuth, requireRole('admin'), validate(venueSchema), createVenue);
+router.post('/', requireAuth, requireRole('admin'), validate(venueSchema), createVenue);
 router.put('/:id', requireAuth, requireRole('admin'), validate(venueSchema.partial()), updateVenue);
 router.delete('/:id', requireAuth, requireRole('admin'), deleteVenue);
 

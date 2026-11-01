@@ -14,11 +14,14 @@ import authRoutes       from './routes/auth.js';
 import eventsRoutes     from './routes/events.js';
 import studentsRoutes   from './routes/students.js';
 import clubsRoutes      from './routes/clubs.js';
+import adminRoutes      from './routes/admin.js';
 import publicClubsRoutes  from './routes/publicClubs.js';
 import { eventsPublicRouter, certificatesRouter } from './routes/publicEvents.js';
 import venuesRoutes     from './routes/venues.js';
 import queryRoutes      from './routes/query.js';
 import { readPool }     from './config/db.js';
+import { requireAuth } from './middleware/auth.js';
+import { getMyMemberships } from './controllers/clubManagementController.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -90,10 +93,12 @@ app.use('/auth',         authRoutes);
 app.use('/api/events',   eventsPublicRouter);
 app.use('/api/events',   eventsRoutes);
 app.use('/api/students', studentsRoutes);
+app.get('/api/me/memberships', requireAuth, getMyMemberships);
 // Public clubs (GET / and GET /:clubId) registered BEFORE the auth-gated router
 // so they replace those two handlers; the auth-gated router still owns POST/PUT/DELETE.
 app.use('/api/clubs',    publicClubsRoutes);
 app.use('/api/clubs',    clubsRoutes);
+app.use('/api/admin',    adminRoutes);
 app.use('/api/venues',   venuesRoutes);
 app.use('/api',          queryRoutes);   // aggregate, join, subquery, correlated, dashboard, reports
 // Certificate verification (public, no auth)
