@@ -56,11 +56,17 @@ export async function listUpcomingEvents() {
 
 export async function listMemories() {
   const clubs = await listClubs({ page: 1, pageSize: 100 });
-  const pastPages = await Promise.all(
-    clubs.data.map(club => getPastEvents(club.clubId, 1, 100)),
+  const eventPages = await Promise.all(
+    clubs.data.map(async club => {
+      const [pastPage, upcomingPage] = await Promise.all([
+        getPastEvents(club.clubId, 1, 100),
+        getUpcomingEvents(club.clubId, 24),
+      ]);
+      return [...pastPage.data, ...upcomingPage.data];
+    }),
   );
-  const past = pastPages.flatMap(page => page.data);
-  const memories = await Promise.all(past.map(event => getEventMemories(event.eventId)));
+  const uniqueEvents = Array.from(new Map(eventPages.flat().map(event => [String(event.eventId), event])).values());
+  const memories = await Promise.all(uniqueEvents.map(event => getEventMemories(event.eventId)));
   return memories.flatMap(({ data }) => {
     const eventInfo = {
       event: data.event.title,
@@ -77,5 +83,5 @@ export async function listMemories() {
       title: photo.caption || data.event.title,
       imageUrl: photo.imageUrl || photo.thumbnailUrl || '',
     }));
-  });
+  }).filter(memory => memory.imageUrl);
 }

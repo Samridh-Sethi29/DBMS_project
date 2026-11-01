@@ -1,10 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { readPool, writePool, getWriteConn } from '../config/db.js';
 import { timed } from '../middleware/timing.js';
 import { parsePagination, paginated } from '../utils/pagination.js';
 import { badRequest, forbidden, notFound } from '../middleware/errorHandler.js';
+
+const controllerDir = path.dirname(fileURLToPath(import.meta.url));
+const backendUploadsRoot = path.resolve(controllerDir, '../../uploads');
 
 function stripHtml(value) {
   if (typeof value !== 'string') return value;
@@ -904,11 +908,10 @@ export async function uploadClubLogo(req, res, next) {
   try {
     const clubId = Number(req.params.clubId);
     if (!req.file) return next(badRequest('logo file is required.'));
-    const uploadsDir = path.resolve(process.cwd(), '../uploads');
-    fs.mkdirSync(uploadsDir, { recursive: true });
+    fs.mkdirSync(backendUploadsRoot, { recursive: true });
     const extension = path.extname(req.file.originalname) || '.png';
     const filename = `club-${clubId}-${Date.now()}${extension}`;
-    const target = path.join(uploadsDir, filename);
+    const target = path.join(backendUploadsRoot, filename);
     fs.writeFileSync(target, req.file.buffer);
     const url = `/uploads/${filename}`;
     await writePool.execute('UPDATE clubs SET logo_url = ?, updated_by = ? WHERE club_id = ?', [url, req.user.userId, clubId]);
@@ -925,8 +928,8 @@ export async function createEventPhoto(req, res, next) {
     const [eventRows] = await readPool.execute('SELECT * FROM events WHERE event_id = ? AND club_id = ?', [eventId, clubId]);
     const event = eventRows[0];
     if (!event) return next(notFound('Event not found.'));
-    if (event.status === 'cancelled' || event.is_placeholder || new Date(event.end_datetime) >= new Date()) {
-      return res.status(409).json({ error: { code: 'EVENT_NOT_ENDED', message: 'Photos can only be uploaded for ended, non-cancelled, non-placeholder events.' } });
+    if (event.status === 'cancelled') {
+      return res.status(409).json({ error: { code: 'EVENT_NOT_ELIGIBLE', message: 'Cancelled events cannot have memories uploaded.' } });
     }
     if (!req.files || !req.files.length) return next(badRequest('At least one photo is required.'));
     if (req.files.length > 10) return next(badRequest('You may upload at most 10 files per request.', 'VALIDATION_ERROR'));
@@ -935,15 +938,17 @@ export async function createEventPhoto(req, res, next) {
     if (Number(countRows[0].total) + req.files.length > 50) return next(badRequest('This event already has 50 photos.', 'VALIDATION_ERROR'));
 
     const saved = [];
+    const eventPhotosDir = path.join(backendUploadsRoot, 'photos');
+    fs.mkdirSync(eventPhotosDir, { recursive: true });
     for (const file of req.files) {
-      const uploadsDir = path.resolve(process.cwd(), '../uploads/photos');
-      fs.mkdirSync(uploadsDir, { recursive: true });
       const filename = `event-${eventId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${path.extname(file.originalname) || '.jpg'}`;
-      const target = path.join(uploadsDir, filename);
+      const target = path.join(eventPhotosDir, filename);
       fs.writeFileSync(target, file.buffer);
       const url = `/uploads/photos/${filename}`;
-      const [insertResult] = await writePool.execute('INSERT INTO event_photos (event_id, image_url, thumbnail_url, caption, display_order, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)', [eventId, url, url, file.originalname || null, 100, req.user.userId]);
-      saved.push({ photoId: insertResult.insertId, imageUrl: url, caption: file.originalname || null });
+      const captionInput = typeof req.body?.caption === 'string' ? stripHtml(req.body.caption).slice(0, 200).trim() : '';
+      const caption = captionInput || file.originalname || null;
+      const [insertResult] = await writePool.execute('INSERT INTO event_photos (event_id, image_url, thumbnail_url, caption, display_order, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)', [eventId, url, url, caption, 100, req.user.userId]);
+      saved.push({ photoId: insertResult.insertId, imageUrl: url, caption });
     }
 
     res.status(201).json({ data: saved, meta: { rowCount: saved.length, executionTimeMs: 0 } });
@@ -991,7 +996,7 @@ export async function deleteEventPhoto(req, res, next) {
     if (!photoRows.length) return next(notFound('Photo not found.'));
     if (Number(photoRows[0].club_id) !== clubId) return next(notFound('Photo does not belong to this club.'));
 
-    const filePath = path.resolve(process.cwd(), '..', 'uploads', path.basename(photoRows[0].image_url));
+    const filePath = path.join(backendUploadsRoot, 'photos', path.basename(photoRows[0].image_url));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     await writePool.execute('DELETE FROM event_photos WHERE photo_id = ?', [photoId]);
     res.json({ data: { photoId, deleted: true }, meta: { rowCount: 1, executionTimeMs: 0 } });

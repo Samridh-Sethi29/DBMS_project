@@ -28,7 +28,7 @@ export default function ClubDetails() {
     String(member.clubId) === String(clubId) && !['left'].includes(member.status),
   );
   const memberRecord = memberships.find(member => String(member.clubId) === String(clubId));
-  const canManageClub = Boolean(membership && membership.status === 'approved' && membership.rank >= 2);
+  const canManageClub = user?.role === 'admin' || Boolean(membership && membership.status === 'approved' && membership.rank >= 2);
   const joinMutation = useMutation({
     mutationFn: () => joinClub(clubId),
     onSuccess: (response: any) => {

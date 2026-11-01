@@ -4,7 +4,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import rateLimit from 'express-rate-limit';
@@ -43,6 +43,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(timing);  // attach req.startHr for per-request timing
 const uploadsDir = path.resolve(backendDir, '../uploads');
+mkdirSync(uploadsDir, { recursive: true });
 if (existsSync(uploadsDir)) app.use('/uploads', express.static(uploadsDir));
 
 const authRateLimit = rateLimit({

@@ -16,6 +16,7 @@ import {
   getMyMemberships,
   listManageEvents,
   updateClubProfile,
+  updateMemberStatus,
   uploadClubLogo,
   uploadEventPhoto,
 } from '@/api/clubs.js';
@@ -70,7 +71,12 @@ export default function ClubManagement() {
   const [conflictMessage, setConflictMessage] = useState('');
   const [notice, setNotice] = useState('');
 
-  const canManage = Boolean(membership && membership.rank >= 2);
+  const eligibleEvents = useMemo(
+    () => (events || []).filter(event => event.status !== 'cancelled'),
+    [events],
+  );
+
+  const canManage = user?.role === 'admin' || Boolean(membership && membership.rank >= 2);
 
   const createEvent = useMutation<unknown, Error, Record<string, any>>({
     mutationFn: payload => createClubEvent(clubId, payload),
@@ -132,15 +138,19 @@ export default function ClubManagement() {
 
   const uploadPhotos = useMutation({
     mutationFn: () => {
-      if (!selectedPhotoEventId || !photoFile) throw new Error('Choose an event and a photo file to upload.');
+      if (!selectedPhotoEventId || !photoFile) throw new Error('Choose a club event and a photo file to upload.');
       return uploadEventPhoto(clubId, Number(selectedPhotoEventId), photoFile, photoCaption);
     },
+    onMutate: () => {
+      setNotice('Uploading photo to the event gallery…');
+    },
     onSuccess: () => {
-      setNotice('Event photo uploaded successfully.');
+      setNotice('Event photo uploaded successfully and is now visible in the memories gallery.');
       setPhotoFile(null);
       setPhotoCaption('');
       setSelectedPhotoEventId('');
       queryClient.invalidateQueries({ queryKey: ['club-manage-events', clubId] });
+      queryClient.invalidateQueries({ queryKey: ['memories'] });
     },
     onError: error => {
       setNotice(error instanceof Error ? error.message : 'Unable to upload the event photo.');
@@ -186,6 +196,19 @@ export default function ClubManagement() {
   const members = membersPage?.data || [];
   const pendingMembers = members.filter(member => member.status === 'pending');
   const approvedMembers = members.filter(member => member.status === 'approved' || member.status === 'left');
+
+  const updateMembershipStatus = useMutation({
+    mutationFn: ({ studentId, status }: { studentId: number; status: 'approved' | 'left' }) => updateMemberStatus(clubId, studentId, status),
+    onSuccess: (_, variables) => {
+      const actionLabel = variables.status === 'approved' ? 'approved' : 'rejected';
+      setNotice(`Membership request ${actionLabel}.`);
+      queryClient.invalidateQueries({ queryKey: ['club-members', clubId] });
+      queryClient.invalidateQueries({ queryKey: ['my-memberships'] });
+    },
+    onError: error => {
+      setNotice(error instanceof Error ? error.message : 'Unable to update membership status.');
+    },
+  });
 
   useEffect(() => {
     if (club) {
@@ -246,7 +269,7 @@ export default function ClubManagement() {
 
         {!showQueryError && !clubLoading && !membershipLoading && !membersLoading && !eventsLoading && (
           <div className="mt-8 space-y-8">
-            {!membership && (
+            {!membership && user?.role !== 'admin' && (
               <div className="rounded-2xl border border-amber-900/50 bg-amber-500/5 p-5 text-sm text-amber-200">
                 You are not currently part of this club. Join to request membership and unlock the management tools.
               </div>
@@ -351,6 +374,24 @@ export default function ClubManagement() {
                               <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-200">{member.status}</span>
                             </div>
                             <p className="mt-1 text-slate-400">Roll no: {member.rollNo}</p>
+                            <div className="mt-3 flex gap-2">
+                              <button
+                                type="button"
+                                disabled={updateMembershipStatus.isPending && updateMembershipStatus.variables?.studentId === member.studentId}
+                                onClick={() => updateMembershipStatus.mutate({ studentId: member.studentId, status: 'approved' })}
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {updateMembershipStatus.isPending && updateMembershipStatus.variables?.studentId === member.studentId && updateMembershipStatus.variables?.status === 'approved' ? 'Approving…' : 'Approve'}
+                              </button>
+                              <button
+                                type="button"
+                                disabled={updateMembershipStatus.isPending && updateMembershipStatus.variables?.studentId === member.studentId}
+                                onClick={() => updateMembershipStatus.mutate({ studentId: member.studentId, status: 'left' })}
+                                className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {updateMembershipStatus.isPending && updateMembershipStatus.variables?.studentId === member.studentId && updateMembershipStatus.variables?.status === 'left' ? 'Rejecting…' : 'Reject'}
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -439,11 +480,12 @@ export default function ClubManagement() {
                       </button>
 
                       <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+                        <p className="mb-2 text-xs uppercase tracking-[0.2em] text-slate-400">Event memories</p>
                         <label className="block text-sm text-slate-300">
                           Event
                           <select value={selectedPhotoEventId} onChange={event => setSelectedPhotoEventId(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-white">
                             <option value="">Select an event</option>
-                            {events.map(event => (
+                            {eligibleEvents.length === 0 ? <option value="" disabled>No available events yet</option> : eligibleEvents.map(event => (
                               <option key={event.eventId} value={String(event.eventId)}>{event.title}</option>
                             ))}
                           </select>
@@ -456,7 +498,7 @@ export default function ClubManagement() {
                           Photo file
                           <input type="file" accept="image/*" onChange={event => setPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-sm text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:text-white" />
                         </label>
-                        <button type="button" disabled={uploadPhotos.isPending || !selectedPhotoEventId || !photoFile} onClick={() => uploadPhotos.mutate()} className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                        <button type="button" disabled={uploadPhotos.isPending || !selectedPhotoEventId || !photoFile || eligibleEvents.length === 0} onClick={() => uploadPhotos.mutate()} className="mt-4 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
                           {uploadPhotos.isPending ? 'Uploading photo…' : 'Upload event photo'}
                         </button>
                       </div>

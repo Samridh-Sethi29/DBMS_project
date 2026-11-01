@@ -597,11 +597,15 @@ test('GET /api/events/:eventId/memories returns the past event and three ordered
   assert.equal(Number(photoCount), 3);
 });
 
-test('GET /api/events/:eventId/memories hides future, cancelled, and unknown events', async () => {
+test('GET /api/events/:eventId/memories allows non-cancelled events and hides cancelled/unknown events', async () => {
   const futureId = fixtures.eventIdsByMode.internal;
+  const futureResult = await request(`/api/events/${futureId}/memories`);
+  assertStatus(futureResult.response, 200);
+  assert.equal(futureResult.body.data.event.title, fixtures.names.internal);
+
   const cancelledPastId = fixtures.eventIdsByLabel['Cancelled Past Event'];
   const unknownId = 999999999;
-  for (const id of [futureId, cancelledPastId, unknownId]) {
+  for (const id of [cancelledPastId, unknownId]) {
     const result = await request(`/api/events/${id}/memories`);
     assertStatus(result.response, 404);
   }

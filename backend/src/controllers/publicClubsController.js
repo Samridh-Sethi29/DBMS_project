@@ -337,7 +337,7 @@ export async function getPastEvents(req, res, next) {
 }
 
 // ── 5. GET /api/events/:eventId/memories ────────────────────────────────────
-// Memory page: event details + photos. Only completed/past non-cancelled events.
+// Memory page: event details + photos. Allows any non-cancelled event.
 export async function getEventMemories(req, res, next) {
   try {
     const eventId = parseInt(req.params.eventId, 10);
@@ -360,11 +360,7 @@ export async function getEventMemories(req, res, next) {
         [eventId],
       );
       if (!event) return null;
-
-      // Only completed events or events whose end time is in the past; never cancelled.
-      const isPast = event.status === 'completed'
-        || (event.endDatetime && new Date(event.endDatetime) < new Date());
-      if (!isPast || event.status === 'cancelled') return { notAllowed: true };
+      if (event.status === 'cancelled') return { notAllowed: true };
 
       const [photos] = await readPool.execute(
         `SELECT

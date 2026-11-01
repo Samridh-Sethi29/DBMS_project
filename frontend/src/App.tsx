@@ -14,9 +14,8 @@ import Register from "@/pages/Register";
 import { useAuth } from "@/auth/AuthContext";
 
 function LandingRoute() {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   if (loading) return <p className="p-8 text-center text-slate-300">Checking your session…</p>;
-  if (user?.role === 'admin') return <Navigate to="/admin" replace />;
   return <Home />;
 }
 

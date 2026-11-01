@@ -31,8 +31,11 @@ export const createClubEvent = (clubId, payload) =>
     method: 'POST',
     body: JSON.stringify(payload),
   });
-export const listManageEvents = (clubId, status = 'all') =>
-  request(`/api/clubs/${encodeURIComponent(clubId)}/events/manage?status=${encodeURIComponent(status)}`);
+export const listManageEvents = (clubId, status = 'all', pageSize = 100) => {
+  const query = new URLSearchParams({ page: '1', pageSize: String(pageSize) });
+  if (status && status !== 'all') query.set('status', status);
+  return request(`/api/clubs/${encodeURIComponent(clubId)}/events/manage?${query}`);
+};
 export const getEventRegistrations = (clubId, eventId) =>
   request(`/api/clubs/${encodeURIComponent(clubId)}/events/${encodeURIComponent(eventId)}/registrations`);
 export const markAttendance = (clubId, eventId, studentId, status = 'present') =>

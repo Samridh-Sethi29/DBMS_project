@@ -1,5 +1,6 @@
 // src/routes/clubs.js
 import { Router } from 'express';
+import multer from 'multer';
 import { z } from 'zod';
 import { requireAuth, requireRole, requireEntityClubRank, requireClubRank } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -30,6 +31,14 @@ import {
 } from '../controllers/clubManagementController.js';
 
 const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 10 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+    cb(new Error('Only image files are allowed.'));
+  },
+});
 
 const httpUrl = z.string().url().refine(
   u => u.startsWith('http://') || u.startsWith('https://'),
@@ -108,8 +117,8 @@ router.get('/:clubId/events/manage', requireAuth, requireClubRank(2, req => req.
 router.get('/:clubId/events/:eventId/registrations', requireAuth, requireClubRank(2, req => req.params.clubId), getEventRegistrations);
 router.post('/:clubId/events/:eventId/attendance', requireAuth, requireClubRank(2, req => req.params.clubId), markEventAttendance);
 router.post('/:clubId/events/:eventId/certificates', requireAuth, requireClubRank(2, req => req.params.clubId), issueEventCertificates);
-router.post('/:clubId/logo', requireAuth, requireClubRank(2, req => req.params.clubId), uploadClubLogo);
-router.post('/:clubId/events/:eventId/photos', requireAuth, requireClubRank(2, req => req.params.clubId), createEventPhoto);
+router.post('/:clubId/logo', requireAuth, requireClubRank(2, req => req.params.clubId), upload.single('logo'), uploadClubLogo);
+router.post('/:clubId/events/:eventId/photos', requireAuth, requireClubRank(2, req => req.params.clubId), upload.array('photos', 10), createEventPhoto);
 router.patch('/:clubId/events/:eventId/photos/:photoId', requireAuth, requireClubRank(2, req => req.params.clubId), patchEventPhoto);
 router.delete('/:clubId/events/:eventId/photos/:photoId', requireAuth, requireClubRank(2, req => req.params.clubId), deleteEventPhoto);
 
