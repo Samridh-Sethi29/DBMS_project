@@ -25,6 +25,7 @@ export default function MyRegistrations() {
     queryKey: ['my-registrations'],
     queryFn: async () => (await getMyRegistrations()).data,
   });
+  const activeRegistrations = registrations.filter(registration => registration.status === 'registered');
   const cancel = useMutation<unknown, Error, number>({
     mutationFn: (eventId: number) => cancelEventRegistration(eventId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['my-registrations'] }),
@@ -36,11 +37,11 @@ export default function MyRegistrations() {
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-12">
         <h1 className="text-3xl font-bold text-white">My registrations</h1>
         <p className="mt-3 text-slate-300">Signed in as {user?.name}.</p>
-        <QueryState loading={isLoading} error={error} empty={!isLoading && !error && registrations.length === 0} onRetry={() => void refetch()} />
+        <QueryState loading={isLoading} error={error} empty={!isLoading && !error && activeRegistrations.length === 0} onRetry={() => void refetch()} />
         {cancel.error && <p role="alert" className="mt-4 text-sm text-rose-300">{cancel.error.message}</p>}
-        {!isLoading && !error && registrations.length > 0 && (
+        {!isLoading && !error && activeRegistrations.length > 0 && (
           <div className="mt-8 space-y-4">
-            {registrations.map(registration => (
+            {activeRegistrations.map(registration => (
               <article key={registration.registrationId} className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row">
                   <div>

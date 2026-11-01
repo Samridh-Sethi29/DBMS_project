@@ -172,6 +172,7 @@ export async function myRegistrations(req, res, next) {
          JOIN events e ON e.event_id = r.event_id
          JOIN venues v ON v.venue_id = e.venue_id
          WHERE r.student_id = ?
+           AND r.status = 'registered'
          ORDER BY r.registered_at DESC, r.registration_id DESC`,
         [req.user.userId],
       )

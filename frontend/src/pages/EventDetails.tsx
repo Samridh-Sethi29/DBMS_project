@@ -1,41 +1,19 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, MapPin } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ApiImage from '@/components/ApiImage';
 import QueryState from '@/components/QueryState';
-import { getEvent, mapEvent, registerForEvent } from '@/api/events.js';
-import { useAuth } from '@/auth/AuthContext';
+import EventRegistrationButton from '@/components/EventRegistrationButton';
+import { getEvent, mapEvent } from '@/api/events.js';
 
 export default function EventDetails() {
   const { eventId = '' } = useParams();
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [message, setMessage] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const { data: event, isLoading, error, refetch } = useQuery({
     queryKey: ['event', eventId],
     queryFn: async () => mapEvent((await getEvent(eventId)).data),
   });
-
-  async function register() {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    setSubmitting(true);
-    setMessage('');
-    try {
-      await registerForEvent(eventId);
-      setMessage('Registration completed.');
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Registration failed.');
-    } finally {
-      setSubmitting(false);
-    }
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
@@ -59,12 +37,11 @@ export default function EventDetails() {
                 <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4 text-indigo-300" />{event.venue || 'Venue not specified'}</span>
                 <span>By {event.clubName}</span>
               </div>
-              {event.signupMode === 'external' && event.externalSignupUrl ? (
-                <a href={event.externalSignupUrl} target="_blank" rel="noreferrer" className="inline-block rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white">External registration</a>
-              ) : event.signupMode === 'internal' ? (
-                <button disabled={submitting} onClick={() => void register()} className="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white disabled:opacity-50">{submitting ? 'Registering…' : 'Register'}</button>
-              ) : <p className="text-sm text-slate-400">Registration is not available for this event.</p>}
-              {message && <p role="status" className="text-sm text-slate-300">{message}</p>}
+              {event.signupMode === 'internal' || event.signupMode === 'external' ? (
+                <EventRegistrationButton event={event} className="max-w-sm" />
+              ) : (
+                <p className="text-sm text-slate-400">Registration is not available for this event.</p>
+              )}
             </div>
           </div>
         </>}

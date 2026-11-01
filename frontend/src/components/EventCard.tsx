@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Calendar, Clock, MapPin, ArrowRight } from 'lucide-react';
 import { CampusEvent } from '@/lib/store';
 import ApiImage from '@/components/ApiImage';
+import EventRegistrationButton from '@/components/EventRegistrationButton';
 
 interface EventCardProps {
   event: CampusEvent;
@@ -74,10 +75,8 @@ export default function EventCard({ event }: EventCardProps) {
         </div>
 
         {/* CTA */}
-        <div className="pt-2">
-          {event.signupMode === 'external' && event.externalSignupUrl ? (
-            <a href={event.externalSignupUrl} target="_blank" rel="noreferrer" className="mb-2 block text-center text-xs text-cyan-300 underline">External sign-up</a>
-          ) : null}
+        <div className="space-y-2 pt-2">
+          <EventRegistrationButton event={event} compact />
           <Link
             to={`/events/${event.id}`}
             className="w-full py-2.5 px-4 rounded-xl font-medium text-xs text-center flex items-center justify-center gap-2 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 hover:border-transparent transition-all"
