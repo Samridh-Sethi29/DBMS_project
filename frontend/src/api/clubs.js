@@ -26,6 +26,11 @@ export const updateMemberRole = (clubId, studentId, payload) =>
     method: 'PUT',
     body: JSON.stringify(payload),
   });
+export const assignClubLeadership = (clubId, payload) =>
+  request(`/api/admin/clubs/${encodeURIComponent(clubId)}/members`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 export const createClubEvent = (clubId, payload) =>
   request(`/api/clubs/${encodeURIComponent(clubId)}/events`, {
     method: 'POST',

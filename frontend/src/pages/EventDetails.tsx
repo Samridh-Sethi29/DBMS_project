@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, MapPin } from 'lucide-react';
+import { ArrowLeft, Calendar, ImageIcon, MapPin } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ApiImage from '@/components/ApiImage';
 import QueryState from '@/components/QueryState';
 import EventRegistrationButton from '@/components/EventRegistrationButton';
-import { getEvent, mapEvent } from '@/api/events.js';
+import { getEvent, getEventMemories, mapEvent } from '@/api/events.js';
 
 export default function EventDetails() {
   const { eventId = '' } = useParams();
@@ -14,6 +14,12 @@ export default function EventDetails() {
     queryKey: ['event', eventId],
     queryFn: async () => mapEvent((await getEvent(eventId)).data),
   });
+  const { data: memoriesData, isLoading: memoriesLoading, error: memoriesError, refetch: refetchMemories } = useQuery({
+    queryKey: ['event-memories', eventId],
+    queryFn: async () => (await getEventMemories(eventId)).data,
+    enabled: !!eventId,
+  });
+  const memories = memoriesData?.photos || [];
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
@@ -44,6 +50,29 @@ export default function EventDetails() {
               )}
             </div>
           </div>
+
+          <section className="mt-10 rounded-3xl border border-slate-800 bg-slate-900 p-6 sm:p-8">
+            <div className="mb-5 flex items-center gap-2 text-fuchsia-300">
+              <ImageIcon className="h-5 w-5" />
+              <h2 className="text-xl font-bold text-white">Event memories</h2>
+            </div>
+            <QueryState
+              loading={memoriesLoading}
+              error={memoriesError}
+              empty={!memoriesLoading && !memoriesError && memories.length === 0}
+              onRetry={() => void refetchMemories()}
+            />
+            {!memoriesLoading && !memoriesError && memories.length > 0 && (
+              <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {memories.map(memory => (
+                  <article key={memory.photoId} className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950">
+                    <ApiImage src={memory.imageUrl} alt={memory.caption || event.title} className="h-64 w-full object-cover" />
+                    {memory.caption && <div className="p-4 text-sm text-slate-300">{memory.caption}</div>}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </>}
       </main>
       <Footer />

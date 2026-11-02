@@ -17,8 +17,12 @@ const studentSearchSchema = z.object({
 });
 
 const adminClubMemberSchema = z.object({
-  studentId: z.coerce.number().int().positive(),
+  studentId: z.coerce.number().int().positive().optional(),
+  email: z.string().trim().email().optional(),
   role: z.enum(['member', 'core_member', 'vice_chair', 'chair']),
+}).refine((data) => Number.isFinite(data.studentId) || !!data.email, {
+  message: 'Either studentId or email is required.',
+  path: ['studentId'],
 });
 
 router.get('/students', requireAuth, requireRole('admin'), validate(studentSearchSchema, 'query'), listAdminStudents);

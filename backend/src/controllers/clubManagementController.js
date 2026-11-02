@@ -352,8 +352,8 @@ export async function listAdminStudents(req, res, next) {
     const where = ['u.is_active = 1'];
     const params = [];
     if (search) {
-      where.push('(u.name LIKE ? OR s.roll_no LIKE ? OR d.name LIKE ?)');
-      params.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`);
+      where.push('(u.name LIKE ? OR u.email LIKE ? OR s.roll_no LIKE ? OR d.name LIKE ?)');
+      params.push(`%${escaped}%`, `%${escaped}%`, `%${escaped}%`, `%${escaped}%`);
     }
 
     const [countRows] = await readPool.execute(
@@ -365,7 +365,7 @@ export async function listAdminStudents(req, res, next) {
     );
 
     const [rows] = await readPool.execute(
-      `SELECT s.student_id AS studentId, u.name, s.roll_no AS rollNo, d.name AS department
+      `SELECT s.student_id AS studentId, u.name, u.email, s.roll_no AS rollNo, d.name AS department
        FROM students s
        JOIN users u ON u.user_id = s.student_id
        LEFT JOIN departments d ON d.department_id = s.department_id
@@ -375,7 +375,13 @@ export async function listAdminStudents(req, res, next) {
     );
 
     res.json(paginated({
-      data: rows.map(row => ({ studentId: Number(row.studentId), name: row.name, rollNo: row.rollNo, department: row.department })),
+      data: rows.map(row => ({
+        studentId: Number(row.studentId),
+        name: row.name,
+        email: row.email,
+        rollNo: row.rollNo,
+        department: row.department,
+      })),
       total: Number(countRows[0].total),
       page,
       pageSize,
@@ -389,13 +395,24 @@ export async function listAdminStudents(req, res, next) {
 export async function createAdminClubMember(req, res, next) {
   try {
     const clubId = Number(req.params.clubId);
-    const studentId = Number(req.body.studentId);
+    const submittedStudentId = Number(req.body.studentId);
+    const email = String(req.body.email || '').trim().toLowerCase();
     const role = String(req.body.role || '');
 
-    if (!clubId || !studentId) return next(badRequest('studentId is required.'));
+    if (!clubId) return next(badRequest('clubId is required.'));
     if (!['member', 'core_member', 'vice_chair', 'chair'].includes(role)) {
       return next(badRequest('role must be one of member, core_member, vice_chair, chair.', 'VALIDATION_ERROR'));
     }
+
+    let studentId = Number.isFinite(submittedStudentId) ? submittedStudentId : null;
+    if (!studentId && email) {
+      const [[userRow]] = await readPool.execute('SELECT user_id FROM users WHERE email = ? AND is_active = 1', [email]);
+      if (!userRow) return next(notFound('Student not found for that email.'));
+      const [[student]] = await readPool.execute('SELECT student_id FROM students WHERE student_id = ?', [userRow.user_id]);
+      if (!student) return next(notFound('Student profile not found for that email.'));
+      studentId = Number(student.student_id);
+    }
+    if (!studentId) return next(badRequest('studentId or email is required.'));
 
     const [[club]] = await readPool.execute('SELECT club_id FROM clubs WHERE club_id = ?', [clubId]);
     if (!club) return next(notFound('Club not found.'));

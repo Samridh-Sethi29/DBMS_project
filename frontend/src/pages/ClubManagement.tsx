@@ -9,6 +9,7 @@ import ApiImage from '@/components/ApiImage';
 import { useAuth } from '@/auth/AuthContext';
 import { ApiError } from '@/api/client.js';
 import {
+  assignClubLeadership,
   checkVenueConflicts,
   createClubEvent,
   getClub,
@@ -69,6 +70,8 @@ export default function ClubManagement() {
   const [photoCaption, setPhotoCaption] = useState('');
   const [selectedPhotoEventId, setSelectedPhotoEventId] = useState('');
   const [conflictMessage, setConflictMessage] = useState('');
+  const [leadershipEmail, setLeadershipEmail] = useState('');
+  const [leadershipRole, setLeadershipRole] = useState<'member' | 'core_member' | 'vice_chair' | 'chair'>('member');
   const [notice, setNotice] = useState('');
 
   const eligibleEvents = useMemo(
@@ -193,7 +196,7 @@ export default function ClubManagement() {
     }
   };
 
-  const members = membersPage?.data || [];
+  const members = Array.isArray(membersPage) ? membersPage : (membersPage?.data || []);
   const pendingMembers = members.filter(member => member.status === 'pending');
   const approvedMembers = members.filter(member => member.status === 'approved' || member.status === 'left');
 
@@ -207,6 +210,23 @@ export default function ClubManagement() {
     },
     onError: error => {
       setNotice(error instanceof Error ? error.message : 'Unable to update membership status.');
+    },
+  });
+
+  const assignLeadership = useMutation({
+    mutationFn: () => assignClubLeadership(clubId, {
+      email: leadershipEmail.trim(),
+      role: leadershipRole,
+    }),
+    onSuccess: () => {
+      setNotice(`Assigned leadership role: ${leadershipRole.replace('_', ' ')}.`);
+      setLeadershipEmail('');
+      setLeadershipRole('member');
+      queryClient.invalidateQueries({ queryKey: ['club-members', clubId] });
+      queryClient.invalidateQueries({ queryKey: ['my-memberships'] });
+    },
+    onError: error => {
+      setNotice(error instanceof Error ? error.message : 'Unable to assign leadership role.');
     },
   });
 
@@ -402,6 +422,46 @@ export default function ClubManagement() {
                     <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-white">
                       <Users className="h-5 w-5 text-emerald-300" /> Club member roster
                     </div>
+                    {user?.role === 'admin' && (
+                      <div className="mb-5 rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-3">
+                        <p className="mb-3 text-sm font-medium text-white">Assign leadership role by email</p>
+                        <div className="space-y-3">
+                          <input
+                            type="email"
+                            value={leadershipEmail}
+                            onChange={event => setLeadershipEmail(event.target.value)}
+                            placeholder="student@example.edu"
+                            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                          />
+                          <div className="flex gap-2">
+                            <select
+                              value={leadershipRole}
+                              onChange={event => setLeadershipRole(event.target.value as 'member' | 'core_member' | 'vice_chair' | 'chair')}
+                              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
+                            >
+                              <option value="member">Member</option>
+                              <option value="core_member">Core Member</option>
+                              <option value="vice_chair">Vice Chair</option>
+                              <option value="chair">Chair</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!leadershipEmail.trim()) {
+                                  setNotice('Please enter a student email.');
+                                  return;
+                                }
+                                assignLeadership.mutate();
+                              }}
+                              disabled={assignLeadership.isPending}
+                              className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {assignLeadership.isPending ? 'Assigning…' : 'Assign role'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {approvedMembers.length === 0 ? (
                       <p className="text-sm text-slate-400">No approved members yet.</p>
                     ) : (
